@@ -5,7 +5,9 @@
  */
 export const DEFAULTS = Object.freeze({
  maxDpr: 1.5, fps: 30, revealSeconds: 42, revealDelay: 1.8,
- vortexRadiansPerSecond: .0035, arcRadiansPerSecond: .006,
+ // The ribbon travels across several character cells in a few seconds, while
+ // the full field still takes over two minutes to make one gentle turn.
+ vortexRadiansPerSecond: .04, arcRadiansPerSecond: .09,
  glyphCycleSeconds: 56, glyphCrossfadeSeconds: 12,
  shimmerRadiansPerSecond: .028, pointerEaseSeconds: 2.4,
  replayFadeSeconds: 5.5, background: '#000000'
@@ -40,7 +42,7 @@ export class AsciiField {
  constructor(canvas,options={}) {
   this.canvas=canvas;this.options={...DEFAULTS,...options};this.context=canvas.getContext('2d',{alpha:false});
   if(!this.context)throw new Error('Canvas 2D unavailable');
-  this.time=0;this.paused=false;this.reduced=!!options.reduced;this.visible=true;this.destroyed=false;this.raf=0;this.previous=0;this.lastDraw=0;
+  this.time=0;this.paused=false;this.reduced=!!options.reduced;this.visible=!document.hidden;this.destroyed=false;this.raf=0;this.previous=0;this.lastDraw=0;
   this.replaySnapshot=null;this.replayElapsed=0;this.pointer={x:0,y:0};this.target={x:0,y:0};this.frameCount=0;
   this.onPointer=e=>{const r=canvas.getBoundingClientRect();this.target={x:((e.clientX-r.left)/r.width-.5)*8,y:((e.clientY-r.top)/r.height-.5)*6}};
   this.onLeave=()=>{this.target={x:0,y:0}};

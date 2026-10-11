@@ -19,7 +19,9 @@ Requested palette: #11FF00 on pure #000000.
 
 ## Slow-motion revision
 - Reveal: 42 seconds after a 1.8-second lead-in, with gradual opacity and fixed-glyph dissolves.
-- Vortex angular drift: 0.0035 radians/second, about one turn every 30 minutes.
+- Vortex angular drift: 0.04 radians/second, about one turn every 2.6 minutes. The bright ribbons move visibly across the character grid within 2–5 seconds and keep flowing after the wordmark resolves.
+- Arc phase advances at 0.09 radians/second; motion uses a continuous clock with no character-cell rounding or random frame switching.
 - Background glyphs: a staggered 56-second cycle with 12-second crossfades; no frame-by-frame random scrambling.
 - Pointer motion: subtle, eased over 2.4 seconds. Replay crossfades for 5.5 seconds rather than cutting to black.
 - Brightness is continuous, avoiding the previous quantized opacity steps.
+- System reduced-motion starts with a clearly identified still composition. Enable motion deliberately starts the flow for this page; pause and replay remain separate controls.

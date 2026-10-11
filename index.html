@@ -26,16 +26,18 @@
     </div>
     <footer class="footer">
       <div class="signature"><span class="plus">+</span><span>FROM NOISE TO KNOWLEDGE</span></div>
-      <div class="controls" role="group" aria-label="Animation controls">
-        <button id="motion" type="button" aria-pressed="false" title="Use a still, reduced-motion composition"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 10V6m4 7V3m4 11V2m4 9V5"/></svg><span>Motion</span><span class="motion-state">on</span></button>
+      <div class="motion-panel">
+      <p class="motion-status" id="status" role="status" aria-live="polite">Loading animation.</p>
+      <div class="controls" role="group" aria-label="Animation controls" aria-describedby="status">
+        <button id="motion" type="button" aria-pressed="true" aria-label="Turn animation motion off" title="Show a still composition"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 10V6m4 7V3m4 11V2m4 9V5"/></svg><span class="motion-label">Motion</span><span class="motion-state">on</span></button>
         <button id="pause" type="button" aria-label="Pause animation"><svg viewBox="0 0 16 16" aria-hidden="true"><path class="pause-shape" d="M5 3v10M11 3v10"/><path class="play-shape" d="m5 3 7 5-7 5Z"/></svg><span>Pause</span></button>
         <button id="replay" type="button" aria-label="Replay reveal"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6a5 5 0 1 1 .5 5M3 2v4h4"/></svg><span>Replay</span></button>
       </div>
+      </div>
     </footer>
     <div class="coordinates" aria-hidden="true"><span>V / ∞</span><span>ASCII FIELD</span></div>
-    <div class="sr-only" id="status" role="status" aria-live="polite"></div>
   </main>
-  <noscript><style>.fallback{display:block!important}.controls{display:none}</style></noscript>
+  <noscript><style>.fallback{display:block!important}.controls,.motion-status{display:none}</style></noscript>
   <script type="module" src="./app.js"></script>
 </body>
 </html>
