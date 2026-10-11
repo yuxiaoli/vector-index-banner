@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <meta name="description" content="An original ASCII signal experiment for Vector Index. Move through the field and watch meaning emerge.">
+  <title>Vector Index — Signal / 001</title>
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="scene" id="scene" aria-label="Vector Index interactive ASCII banner">
+    <canvas id="field" aria-hidden="true"></canvas>
+    <div class="crt" aria-hidden="true"></div>
+    <div class="vignette" aria-hidden="true"></div>
+    <header class="masthead">
+      <a class="identity" href="./" aria-label="Vector Index, replay home"><svg viewBox="0 0 28 28" fill="none" aria-hidden="true"><path d="M4 5h6l4 13 4-13h6L14 25 4 5Z" stroke="currentColor" stroke-width="1.2"/><path d="m6 10 8 4 8-4" stroke="currentColor" stroke-width="1"/></svg><span>VECTOR INDEX</span></a>
+      <span class="edition"><i></i>SIGNAL / 001</span>
+    </header>
+    <div class="hero-copy">
+      <p class="eyebrow">ORDER WITHIN THE INFINITE</p>
+      <h1 class="sr-only">Vector Index</h1>
+      <div class="fallback" id="fallback" aria-hidden="true">VECTOR INDEX</div>
+      <p class="tagline">Meaning, in every dimension.</p>
+    </div>
+    <footer class="footer">
+      <div class="signature"><span class="plus">+</span><span>FROM NOISE TO KNOWLEDGE</span></div>
+      <div class="controls" role="group" aria-label="Animation controls">
+        <button id="motion" type="button" aria-pressed="false" title="Use a still, reduced-motion composition"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 10V6m4 7V3m4 11V2m4 9V5"/></svg><span>Motion</span><span class="motion-state">on</span></button>
+        <button id="pause" type="button" aria-label="Pause animation"><svg viewBox="0 0 16 16" aria-hidden="true"><path class="pause-shape" d="M5 3v10M11 3v10"/><path class="play-shape" d="m5 3 7 5-7 5Z"/></svg><span>Pause</span></button>
+        <button id="replay" type="button" aria-label="Replay reveal"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6a5 5 0 1 1 .5 5M3 2v4h4"/></svg><span>Replay</span></button>
+      </div>
+    </footer>
+    <div class="coordinates" aria-hidden="true"><span>V / ∞</span><span>ASCII FIELD</span></div>
+    <div class="sr-only" id="status" role="status" aria-live="polite"></div>
+  </main>
+  <noscript><style>.fallback{display:block!important}.controls{display:none}</style></noscript>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

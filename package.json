@@ -1,0 +1,8 @@
+{
+  "name": "vector-index-banner",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check renderer.js && node --check app.js && node tests/renderer.test.mjs"
+  }
+}
