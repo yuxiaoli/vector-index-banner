@@ -25,3 +25,6 @@ Requested palette: #11FF00 on pure #000000.
 - Pointer motion: subtle, eased over 2.4 seconds. Replay crossfades for 5.5 seconds rather than cutting to black.
 - Brightness is continuous, avoiding the previous quantized opacity steps.
 - System reduced-motion starts with a clearly identified still composition. Enable motion deliberately starts the flow for this page; pause and replay remain separate controls.
+
+## Brighter moving glyphs
+Dim background strokes use a continuous opacity lift and a semibold font, with a lighter black vignette and scanline overlay. This increases green pixel coverage and contrast while keeping the exact `#11FF00` pigment, pure black background, existing flow rates, and 42-second reveal. Brightness and absolute temporal-change regressions run alongside the original smoothness and lifecycle checks.

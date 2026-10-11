@@ -82,7 +82,7 @@ export class AsciiField {
   const timing=timingAt(t,this.options),{reveal}=timing;
   const cx=this.cx+(this.reduced?0:this.pointer.x),cy=this.cy+(this.reduced?0:this.pointer.y),size=Math.min(w,h);
   c.globalAlpha=1;c.fillStyle=this.options.background;c.fillRect(0,0,w,h);
-  c.fillStyle='#11ff00';c.font=`${this.row*.88}px "SFMono-Regular",Consolas,"Liberation Mono",monospace`;c.textAlign='center';c.textBaseline='middle';
+  c.fillStyle='#11ff00';c.font=`600 ${this.row*.88}px "SFMono-Regular",Consolas,"Liberation Mono",monospace`;c.textAlign='center';c.textBaseline='middle';
   const cols=Math.ceil(w/this.cell),rows=Math.ceil(h/this.row),intro=1-reveal;
   for(let j=0;j<rows;j++)for(let i=0;i<cols;i++){
    const x=(i+.5)*this.cell,y=(j+.5)*this.row,dx=(x-cx)/size,dy=(y-cy)/size,r=Math.hypot(dx,dy),a=Math.atan2(dy,dx);
@@ -94,7 +94,8 @@ export class AsciiField {
    let intensity=(.085+ribbon*.52+arc*.16)*core*edge*centerClear+intro*.15*Math.exp(-r*4);
    // Spatial texture stays anchored to the glyph lattice; only the broad flow moves.
    intensity*=.58+.42*hash(i+71,j-18);
-   const alpha=clamp(intensity*.64),glyph=glyphStateAt(i,j,t,this.options);
+   // Lift dim phosphor strokes without changing the field's slow motion clock.
+   const alpha=Math.pow(clamp(intensity*.64),.76),glyph=glyphStateAt(i,j,t,this.options);
    c.globalAlpha=alpha*(1-glyph.blend);c.fillText(glyph.from,x,y);
    if(glyph.blend>0){c.globalAlpha=alpha*glyph.blend;c.fillText(glyph.to,x,y)}
   }
