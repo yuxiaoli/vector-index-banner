@@ -124,7 +124,7 @@ assert.equal(adjustable.field.formationDuration,60,'duration input configures th
 assert.equal(adjustable.field.flowSpeed,1.75,'duration adjustment leaves flow speed alone');
 assert.equal(adjustable.field.replays,0,'duration adjustment does not restart assembly');
 assert.equal(adjustable.elements['#duration-value'].textContent,'60s','duration output displays total seconds');
-assert.equal(adjustable.elements['#formation-duration'].attributes['aria-valuetext'],'60 seconds total, including opening drift');
+assert.equal(adjustable.elements['#formation-duration'].attributes['aria-valuetext'],'60 seconds total, including a 10-second opening');
 
 const bounded=mount();
 bounded.elements['#flow-speed'].input('12');
@@ -204,6 +204,6 @@ for(const [id,label,value,min,max,step,output] of [
  assert.ok(html.indexOf(`id="${id}"`)>html.indexOf('<div class="controls"'),`${label} shares the fallback-hidden controls group`);
  assert.ok(html.indexOf(`id="${id}"`)<html.indexOf('<div class="control-buttons"'),`${label} belongs inside the same controls group`);
 }
-assert.match(html,/id="timing-help">Includes opening drift\. Changes remaining pace; Replay starts a full cycle\./,'visible help explains that the total includes opening drift and preserves progress');
+assert.match(html,/id="timing-help">Includes a 10-second opening\. Changes remaining pace; Replay starts a full cycle\./,'visible help explains the fixed ten-second opening is included and changes preserve progress');
 
 console.log('PASS: labelled native speed/duration controls; independent bounded updates; visible values and duration explanation; paused/reduced settings; replay persistence; reduced-motion preference/override; pause/replay; BFCache preservation; readable fallback.');

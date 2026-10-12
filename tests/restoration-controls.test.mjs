@@ -6,7 +6,6 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { isDeepStrictEqual } from 'node:util';
 import * as renderer from '../renderer.js';
 
 const baselineCommit = '192cd7374e791883865bf88a65d50c3010104ad8';
@@ -43,10 +42,18 @@ function createHarness(module, width, height, options = {}) {
 
 const legacyDuration = baseline.DEFAULTS.revealDelay + baseline.DEFAULTS.wanderSeconds + baseline.DEFAULTS.revealSeconds;
 const flowCalibration = legacyDuration / 45;
-const wallAtLegacy = seconds => seconds * 45 / legacyDuration;
+const openingSeconds = 10;
+function historicalOptions(duration, speed = 1) {
+  const calibration = flowCalibration * speed;
+  return {
+    revealDelay: baseline.DEFAULTS.revealDelay / (baseline.DEFAULTS.revealDelay + baseline.DEFAULTS.wanderSeconds) * openingSeconds * calibration,
+    wanderSeconds: baseline.DEFAULTS.wanderSeconds / (baseline.DEFAULTS.revealDelay + baseline.DEFAULTS.wanderSeconds) * openingSeconds * calibration,
+    revealSeconds: (duration - openingSeconds) * calibration
+  };
+}
 const close = (a, b, message) => assert.ok(Math.abs(a - b) < 1e-10, message);
 function equalClocks(a, b) {
-  for (const key of ['wallSeconds', 'flowSeconds', 'totalProgress', 'sequenceSeconds', 'formationProgress']) close(a[key], b[key], key + ' remains continuous');
+  for (const key of ['wallSeconds', 'flowSeconds', 'openingProgress', 'totalProgress', 'sequenceSeconds', 'formationProgress']) close(a[key], b[key], key + ' remains continuous');
 }
 function equalFrame(a, b) {
   assert.equal(a.length, b.length, 'historical draw ordering and command count remain intact');
@@ -72,34 +79,43 @@ function exactReadable(field, commands) {
   return titleGroups(field, commands).filter((group, id) => group[0].x === field.title[id].x && group[0].y === field.title[id].y && group[1].x === field.title[id].x && group[1].y === field.title[id].y && Math.max(group[0].alpha, group[1].alpha) >= .8).length / field.title.length;
 }
 
-test('default45-second paint is the historical192cd renderer reparameterized through its canonical clock', () => {
+test('fixed-opening paint is the historical192cd renderer with separate ambient and stage clocks', () => {
   const times = [0, .3, .9, 1.8, 4, 10, 19.8 - 1 / 30, 19.8, 40, 60, 80, 100, 115.8 - 1 / 30, 115.8, 132, 134, 137, 560];
   const observations = [];
   for (const [width, height] of [[1440, 900], [390, 844], [320, 568]]) {
-    const actual = createHarness(renderer, width, height), expected = createHarness(baseline, width, height);
+    const actual = createHarness(renderer, width, height);
     const viewport = { width, height, cell: actual.field.cell, row: actual.field.row, fontSize: actual.field.titleFont };
     assert.equal(actual.field.totalDuration, 45); assert.equal(actual.field.options.revealSeconds, 96);
-    let checkedCommands = 0, maximumPositionDelta = 0, maximumAlphaDelta = 0;
     for (const time of times) {
       for (const name of ['timingAt', 'glyphStateAt', 'particlePoseAt', 'fieldPoseAt']) {
         const args = name === 'timingAt' ? [time] : name === 'glyphStateAt' ? [17, 31, time] : name === 'fieldPoseAt' ? [17, 31, viewport, time] : [137, actual.field.title[137], viewport, time];
         assert.deepEqual(renderer[name](...args), baseline[name](...args), 'standalone helper formulas remain exactly historical');
       }
-      const commands = actual.capture(wallAtLegacy(time)), oldCommands = expected.capture(time), delta = equalFrame(commands, oldCommands);
-      checkedCommands += oldCommands.length; maximumPositionDelta = Math.max(maximumPositionDelta, delta.maximumPositionDelta); maximumAlphaDelta = Math.max(maximumAlphaDelta, delta.maximumAlphaDelta);
     }
-    observations.push({ width, height, checkedCommands, maximumPositionDelta, maximumAlphaDelta }); actual.field.destroy(); expected.field.destroy();
+    actual.field.destroy();
+    for (const duration of [30, 45, 60]) for (const speed of [.25, 1, 2]) {
+      const current = createHarness(renderer, width, height, { totalDuration: duration, flowSpeed: speed });
+      const expected = createHarness(baseline, width, height, historicalOptions(duration, speed));
+      const stages = [0, .3, .9, 4, 9.999, 10, 10.001, 10 + (duration - 10) / 2, duration - .001, duration, duration + 5];
+      let checkedCommands = 0, maximumPositionDelta = 0, maximumAlphaDelta = 0;
+      for (const wall of stages) {
+        const commands = current.capture(wall), oldCommands = expected.capture(wall * flowCalibration * speed), delta = equalFrame(commands, oldCommands);
+        checkedCommands += oldCommands.length; maximumPositionDelta = Math.max(maximumPositionDelta, delta.maximumPositionDelta); maximumAlphaDelta = Math.max(maximumAlphaDelta, delta.maximumAlphaDelta);
+      }
+      observations.push({ width, height, duration, speed, frames: stages.length, checkedCommands, maximumPositionDelta, maximumAlphaDelta }); current.field.destroy(); expected.field.destroy();
+    }
   }
-  console.log('Total-time historical parity: ' + JSON.stringify({ baselineCommit, baselineSha256, baselineArtifact, observations }));
+  console.log('Fixed-opening historical parity: ' + JSON.stringify({ baselineCommit, baselineSha256, baselineArtifact, observations }));
 });
 
 test('selected30,45,60-second totals include the opening and complete starts and replays independently of flow speed', () => {
-  const observations = [], openingRatio = (baseline.DEFAULTS.revealDelay + baseline.DEFAULTS.wanderSeconds) / legacyDuration;
+  const observations = [];
   for (const [width, height] of [[1440, 900], [390, 844], [320, 568]]) for (const duration of [30, 45, 60]) for (const speed of [.25, 1, 2]) {
     const harness = createHarness(renderer, width, height, { totalDuration: duration, flowSpeed: speed }), { field } = harness;
     assert.equal(field.totalDuration, duration); assert.equal(field.formationDuration, duration);
-    field.time = duration * openingRatio - .001; assert.equal(field.formationProgress, 0);
-    field.time = duration * openingRatio + .001; assert.ok(field.formationProgress > 0, 'the canonical opening boundary scales with the whole chosen duration');
+    field.time = 9.999; assert.equal(field.formationProgress, 0);
+    field.time = 10; assert.equal(field.formationProgress, 0); close(field.sequenceSeconds, 19.8, 'the fixed opening reaches its exact canonical end');
+    field.time = 10.001; assert.ok(field.formationProgress > 0, 'assembly begins only after the fixed ten active seconds');
     field.time = duration - .001; assert.ok(field.totalProgress < 1 && field.formationProgress < 1, 'completion does not happen prematurely');
     const states = [];
     for (const replay of [false, true]) {
@@ -109,14 +125,14 @@ test('selected30,45,60-second totals include the opening and complete starts and
       close(state.sequenceSeconds, legacyDuration, 'the total deadline reaches the exact canonical sequence end');
       states.push({ replay, totalProgress: state.totalProgress, formationProgress: state.formationProgress, exactReadableFraction: readable });
     }
-    observations.push({ width, height, duration, speed, openingSeconds: duration * openingRatio, states }); field.destroy();
+    observations.push({ width, height, duration, speed, openingSeconds, states }); field.destroy();
   }
-  console.log('Total-time completion/intro matrix: ' + JSON.stringify(observations));
+  console.log('Fixed-opening completion matrix: ' + JSON.stringify(observations));
 });
 
 test('total and flow changes preserve the full sequence phase and actual frame before, during and after assembly', () => {
   const observations = [];
-  for (const [width, height] of [[1440, 900], [390, 844], [320, 568]]) for (const time of [.2, 2, 10, 30, 50]) {
+  for (const [width, height] of [[1440, 900], [390, 844], [320, 568]]) for (const time of [.2, 2, 9.95, 10, 15, 30, 50]) {
     const harness = createHarness(renderer, width, height), { field } = harness;
     field.time = time; harness.tick(1000);
     for (const [speed, duration] of [[.25, 30], [2, 60], [.25, 60], [2, 30], [1, 45]]) {
@@ -126,7 +142,13 @@ test('total and flow changes preserve the full sequence phase and actual frame b
       assert.equal(field.raf, pending); assert.equal(field.previous, previousTick); assert.equal(harness.callbacks.size, 1);
     }
     field.setFlowSpeed(2); field.setTotalDuration(30); const before = field.getFrameState(); harness.tick(1050); const after = field.getFrameState();
-    close(after.totalProgress, Math.min(1, before.totalProgress + .05 / 30), 'only the remaining total sequence pace changes');
+    const expectedOpening = Math.min(1, (time + .05) / 10);
+    const assemblyAdvance = (Math.max(0, time + .05 - 10) - Math.max(0, time - 10)) / (30 - 10);
+    const expectedFormation = Math.min(1, before.formationProgress + assemblyAdvance);
+    close(after.openingProgress, expectedOpening, 'duration changes cannot move the ten-second opening gate');
+    close(after.formationProgress, expectedFormation, 'only remaining assembly pace changes to1/(total minus10)');
+    close(after.sequenceSeconds, 19.8 * expectedOpening + 96 * expectedFormation, 'the two fixed canonical stages advance independently');
+    close(after.totalProgress, after.sequenceSeconds / legacyDuration, 'reported total phase follows the canonical two-stage sequence');
     close(after.flowSeconds - before.flowSeconds, .05 * 2 * flowCalibration, 'ambient flow keeps its fixed45-second calibration');
     close(after.formationProgress, baseline.timingAt(after.sequenceSeconds).progress, 'letter progress follows canonical phase rather than ambient flow');
     const calls = harness.capture().filter(call => call.baseline === 'middle'), points = [];
@@ -138,14 +160,14 @@ test('total and flow changes preserve the full sequence phase and actual frame b
     }
     observations.push({ width, height, time, before, after }); field.destroy();
   }
-  console.log('Total-time independent clocks and continuity: ' + JSON.stringify(observations));
+  console.log('Fixed-opening independent clocks and continuity: ' + JSON.stringify(observations));
 });
 
 test('total-time replay and pause/hidden/offscreen/reduced states preserve selected settings and frozen clocks', () => {
   const observations = [];
-  for (const [width, height] of [[1440, 900], [390, 844], [320, 568]]) {
+  for (const [width, height] of [[1440, 900], [390, 844], [320, 568]]) for (const initialTime of [4, 20]) {
     const harness = createHarness(renderer, width, height, { totalDuration: 60 }), { field } = harness;
-    field.time = 20; harness.tick(1000); let now = 1000;
+    field.time = initialTime; harness.tick(1000); let now = 1000;
     const modes = [
       ['pause', () => field.setPaused(true), () => field.setPaused(false)],
       ['hidden', () => { document.hidden = true; harness.listeners.visibilitychange(); }, () => { document.hidden = false; harness.listeners.visibilitychange(); }],
@@ -159,11 +181,15 @@ test('total-time replay and pause/hidden/offscreen/reduced states preserve selec
       field.tick(now + 5000); equalClocks(field.getFrameState(), before);
       if (mode === 'reduced') { field.replay(); equalClocks(field.getFrameState(), before); equalFrame(harness.capture(), commands); }
       resume(); now += 6000; harness.tick(now); equalClocks(field.getFrameState(), before);
-      now += 50; harness.tick(now); close(field.getFrameState().flowSeconds - before.flowSeconds, .05 * .25 * flowCalibration, mode + ' resumes without catch-up');
+      now += 50; harness.tick(now); const resumed = field.getFrameState();
+      close(resumed.flowSeconds - before.flowSeconds, .05 * .25 * flowCalibration, mode + ' resumes without catch-up');
+      close(resumed.openingProgress, Math.min(1, (before.wallSeconds + .05) / 10), mode + ' counts only active seconds toward the opening');
+      if (initialTime === 4) assert.equal(resumed.formationProgress, 0, mode + ' cannot shorten the opening');
+      else close(resumed.formationProgress, Math.min(1, before.formationProgress + .05 / 20), mode + ' resumes the selected remaining assembly pace');
     }
     field.setPaused(true); field.replay(); const reset = field.getFrameState();
     assert.equal(reset.wallSeconds, 0); assert.equal(reset.flowSeconds, 0); assert.equal(reset.totalProgress, 0); assert.equal(reset.sequenceSeconds, 0); assert.equal(reset.formationProgress, 0);
-    assert.equal(field.flowOffset, 0); assert.equal(field.sequenceOffset, 0); assert.equal(field.totalDuration, 30); assert.equal(field.flowSpeed, .25); assert.equal(field.paused, false); assert.ok(field.replaySnapshot);
+    assert.equal(field.flowOffset, 0); assert.equal(field.formationOffset, 0); assert.equal(reset.openingProgress, 0); assert.equal(field.totalDuration, 30); assert.equal(field.flowSpeed, .25); assert.equal(field.paused, false); assert.ok(field.replaySnapshot);
     const restarted = harness.capture(); field.replaySnapshot = null;
     field.setFormationDuration(60); assert.equal(field.totalDuration, 60); field.time = 60; assert.equal(exactReadable(field, harness.capture()), 1);
     field.setReduced(true); const still = harness.capture(); field.setFormationDuration(30); field.setFlowSpeed(2); equalFrame(harness.capture(), still);
@@ -171,12 +197,12 @@ test('total-time replay and pause/hidden/offscreen/reduced states preserve selec
     field.time = 1000; equalFrame(harness.capture(), still);
     const historical = createHarness(baseline, width, height); assert.deepEqual(restarted, historical.capture(0));
     historical.field.setReduced(true); assert.deepEqual(still, historical.capture(1000), 'reduced motion keeps the canonical historical completed still');
-    observations.push({ width, height, replayTotal: 30, replaySpeed: .25, modes: modes.map(([name]) => name) }); field.destroy(); historical.field.destroy();
+    observations.push({ width, height, initialTime, replayTotal: 30, replaySpeed: .25, modes: modes.map(([name]) => name) }); field.destroy(); historical.field.destroy();
   }
-  console.log('Total-time lifecycle and replay: ' + JSON.stringify(observations));
+  console.log('Fixed-opening lifecycle and replay: ' + JSON.stringify(observations));
 });
 
-test('class total timing keeps canonical ratios despite legacy option conflicts and clamps30..60', () => {
+test('class total timing keeps its fixed opening despite legacy option conflicts and clamps30..60', () => {
   const legacyOptions = { revealDelay: 10, wanderSeconds: 50, revealSeconds: 200 };
   const custom = createHarness(renderer, 390, 844, { totalDuration: 30, ...legacyOptions });
   custom.field.time = 30; const deadline = custom.field.getFrameState(); assert.equal(deadline.formationProgress, 1);
@@ -185,7 +211,7 @@ test('class total timing keeps canonical ratios despite legacy option conflicts 
   const openingCustom = createHarness(renderer, 390, 844, { totalDuration: 45, ...legacyOptions }), commands = openingCustom.capture(.35); openingCustom.field.destroy();
   const normal = createHarness(renderer, 390, 844); equalFrame(commands, normal.capture(.35)); normal.field.destroy();
   const helperOptions = { ...baseline.DEFAULTS, ...legacyOptions }; assert.deepEqual(renderer.timingAt(100, helperOptions), baseline.timingAt(100, helperOptions));
-  console.log('Total-time canonical class options: ' + JSON.stringify({ deadline, openingMatchesCanonical: true }));
+  console.log('Fixed-opening canonical class options: ' + JSON.stringify({ deadline, openingMatchesCanonical: true }));
 });
 
 function opacityMap(commands) {
@@ -207,16 +233,34 @@ test('both canonical clocks retain strict opacity continuity while compressed wa
   const observations = [], canonicalStep = 1 / 30;
   for (const [width, height] of [[1440, 900], [390, 844], [320, 568]]) for (const duration of [30, 45, 60]) for (const speed of [.25, 1, 2]) {
     const harness = createHarness(renderer, width, height, { totalDuration: duration, flowSpeed: speed }), { field } = harness;
-    const sequenceRate = legacyDuration / duration, ambientRate = flowCalibration * speed, wallStep = canonicalStep / Math.max(sequenceRate, ambientRate);
+    const openingRate = 19.8 / 10, assemblyRate = 96 / (duration - 10), ambientRate = flowCalibration * speed, wallStep = canonicalStep / Math.max(openingRate, assemblyRate, ambientRate);
     let maximumCanonicalStepAlpha = 0, maximumWallFrameAlpha = 0;
-    for (const fraction of [.005, .5, 1.1]) {
-      const wall = duration * fraction, before = harness.capture(wall), state = field.getFrameState(), canonical = harness.capture(wall + wallStep), after = field.getFrameState();
+    for (const wall of [.3, 9.999, 10.001, 10 + (duration - 10) / 2, duration - .001, duration + 3]) {
+      const before = harness.capture(wall), state = field.getFrameState(), canonical = harness.capture(wall + wallStep), after = field.getFrameState();
       assert.ok(after.flowSeconds - state.flowSeconds <= canonicalStep + 1e-10 && after.sequenceSeconds - state.sequenceSeconds <= canonicalStep + 1e-10, 'neither canonical clock advances more than its unchanged1/30s step');
       maximumCanonicalStepAlpha = Math.max(maximumCanonicalStepAlpha, maximumAlphaDifference(before, canonical));
       assert.ok(maximumCanonicalStepAlpha < .01, 'the unchanged historical shader/intro retains the strict canonical-step opacity limit');
       maximumWallFrameAlpha = Math.max(maximumWallFrameAlpha, maximumAlphaDifference(before, harness.capture(wall + 1 / 30)));
     }
-    observations.push({ width, height, duration, speed, sequenceRate, ambientRate, maximumCanonicalStepAlpha, maximumWallFrameAlpha }); field.destroy();
+    observations.push({ width, height, duration, speed, openingRate, assemblyRate, ambientRate, maximumCanonicalStepAlpha, maximumWallFrameAlpha }); field.destroy();
   }
-  console.log('Total-time canonical/wall opacity: ' + JSON.stringify(observations));
+  console.log('Fixed-opening canonical/wall opacity: ' + JSON.stringify(observations));
+});
+
+test('every total keeps a fixed ten-active-second opening before formation begins', () => {
+  const observations = [];
+  for (const duration of [30, 45, 60]) {
+    const harness = createHarness(renderer, 390, 844, { totalDuration: duration }), { field } = harness;
+    field.time = 9.999; const before = field.getFrameState();
+    field.time = 10; const boundary = field.getFrameState();
+    field.time = 10.001; const after = field.getFrameState();
+    observations.push({ duration, progressBefore: before.formationProgress, progressAt10: boundary.formationProgress, canonicalSecondsAt10: boundary.sequenceSeconds, progressAfter: after.formationProgress }); field.destroy();
+  }
+  console.log('Fixed ten-second opening boundary: ' + JSON.stringify(observations));
+  for (const observation of observations) {
+    assert.equal(observation.progressBefore, 0, 'formation remains absent before ten active seconds');
+    assert.equal(observation.progressAt10, 0, 'formation is still absent at the fixed opening boundary');
+    close(observation.canonicalSecondsAt10, 19.8, 'ten active seconds reaches the exact historical opening end');
+    assert.ok(observation.progressAfter > 0, 'formation starts immediately after ten active seconds');
+  }
 });

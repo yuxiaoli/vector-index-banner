@@ -6,7 +6,7 @@ const formationDuration=document.querySelector('#formation-duration'),durationVa
 const preference=matchMedia('(prefers-reduced-motion: reduce)');
 let renderer,userPaused=false,pageHidden=false,motionOverride=null,selectedFlow=1,selectedDuration=45;
 function syncFlow(){flowSpeed.value=String(selectedFlow);flowValue.textContent=`${selectedFlow.toFixed(2)}×`;flowSpeed.setAttribute('aria-valuetext',`${selectedFlow.toFixed(2)} times normal flow speed`)}
-function syncDuration(){formationDuration.value=String(selectedDuration);durationValue.textContent=`${selectedDuration}s`;formationDuration.setAttribute('aria-valuetext',`${selectedDuration} seconds total, including opening drift`)}
+function syncDuration(){formationDuration.value=String(selectedDuration);durationValue.textContent=`${selectedDuration}s`;formationDuration.setAttribute('aria-valuetext',`${selectedDuration} seconds total, including a 10-second opening`)}
 function sync(message=''){
  scene.classList.toggle('paused',userPaused);scene.classList.toggle('reduced',renderer.reduced);
  pause.querySelector('span').textContent=userPaused?'Play':'Pause';pause.setAttribute('aria-label',userPaused?'Play animation':'Pause animation');

@@ -30,6 +30,7 @@ const smooth=(v)=>{v=clamp(v);return v*v*(3-2*v)};
 const hash=(x,y)=>{let n=Math.imul(x|0,374761393)+Math.imul(y|0,668265263);n=Math.imul(n^(n>>>13),1274126177);return((n^(n>>>16))>>>0)/4294967295};
 const ALPHABET='VECTORINDEX01.:+*=/<>[]{}';
 const SEQUENCE_SECONDS=DEFAULTS.revealDelay+DEFAULTS.wanderSeconds+DEFAULTS.revealSeconds;
+const OPENING_SECONDS=10;
 // A single continuous clock. No startup acceleration or frame-count-based motion.
 export function timingAt(seconds, options=DEFAULTS) {
  const t=Math.max(0,seconds), progress=clamp((t-options.revealDelay-options.wanderSeconds)/options.revealSeconds);
@@ -79,7 +80,7 @@ export class AsciiField {
   if(!this.context)throw new Error('Canvas 2D unavailable');
   this.time=0;this.paused=false;this.reduced=!!options.reduced;this.visible=!document.hidden;this.destroyed=false;this.raf=0;this.previous=0;this.lastDraw=0;
   this.flowSpeed=clamp(Number(this.options.flowSpeed)||1,.25,2);this.flowOffset=0;
-  this.totalDuration=clamp(Number(options.totalDuration??options.formationDuration??DEFAULTS.totalDuration)||45,30,60);this.sequenceOffset=0;
+  this.totalDuration=clamp(Number(options.totalDuration??options.formationDuration??DEFAULTS.totalDuration)||45,30,60);this.formationOffset=0;
   this.options.flowSpeed=this.flowSpeed;this.options.totalDuration=this.totalDuration;
   this.replaySnapshot=null;this.replayElapsed=0;this.pointer={x:0,y:0};this.target={x:0,y:0};this.frameCount=0;
   this.onPointer=e=>{const r=canvas.getBoundingClientRect();this.target={x:((e.clientX-r.left)/r.width-.5)*8,y:((e.clientY-r.top)/r.height-.5)*6}};
@@ -108,12 +109,13 @@ export class AsciiField {
  setPaused(value){this.paused=!!value;this.schedule()}
  setReduced(value){this.reduced=!!value;this.replaySnapshot=null;this.render();this.schedule()}
  get flowTime(){return Math.max(0,this.time*this.flowSpeed+this.flowOffset)}
- get totalProgress(){return clamp(Math.max(0,this.time)/this.totalDuration+this.sequenceOffset)}
- get sequenceSeconds(){return this.totalProgress*SEQUENCE_SECONDS}
+ get openingProgress(){return clamp(Math.max(0,this.time)/OPENING_SECONDS)}
+ get totalProgress(){return this.sequenceSeconds/SEQUENCE_SECONDS}
+ get sequenceSeconds(){return(DEFAULTS.revealDelay+DEFAULTS.wanderSeconds)*this.openingProgress+DEFAULTS.revealSeconds*this.formationProgress}
  // Compatibility names now describe the whole sequence, including its opening.
  get formationDuration(){return this.totalDuration}
- get formationProgress(){return timingAt(this.sequenceSeconds,DEFAULTS).progress}
- getFrameState(){return{wallSeconds:this.time,flowSeconds:this.flowTime/DEFAULTS.totalDuration*SEQUENCE_SECONDS,totalProgress:this.totalProgress,sequenceSeconds:this.sequenceSeconds,formationProgress:this.formationProgress,flowSpeed:this.flowSpeed,totalDuration:this.totalDuration,formationDuration:this.totalDuration}}
+ get formationProgress(){return clamp(Math.max(0,this.time-OPENING_SECONDS)/(this.totalDuration-OPENING_SECONDS)+this.formationOffset)}
+ getFrameState(){return{wallSeconds:this.time,flowSeconds:this.flowTime/DEFAULTS.totalDuration*SEQUENCE_SECONDS,openingProgress:this.openingProgress,openingSeconds:OPENING_SECONDS,totalProgress:this.totalProgress,sequenceSeconds:this.sequenceSeconds,formationProgress:this.formationProgress,flowSpeed:this.flowSpeed,totalDuration:this.totalDuration,formationDuration:this.totalDuration}}
  setFlowSpeed(multiplier){
   const value=Number(multiplier);if(!Number.isFinite(value))return this.flowSpeed;
   const phase=this.flowTime;this.flowSpeed=clamp(value,.25,2);this.options.flowSpeed=this.flowSpeed;
@@ -121,8 +123,8 @@ export class AsciiField {
  }
  setTotalDuration(seconds){
   const value=Number(seconds);if(!Number.isFinite(value))return this.totalDuration;
-  const progress=this.totalProgress;this.totalDuration=clamp(value,30,60);this.options.totalDuration=this.totalDuration;
-  this.sequenceOffset=progress-Math.max(0,this.time)/this.totalDuration;this.render();return this.totalDuration;
+  const progress=this.formationProgress,active=Math.max(0,this.time-OPENING_SECONDS);this.totalDuration=clamp(value,30,60);this.options.totalDuration=this.totalDuration;
+  this.formationOffset=progress-active/(this.totalDuration-OPENING_SECONDS);this.render();return this.totalDuration;
  }
  setFormationDuration(seconds){return this.setTotalDuration(seconds)}
  replay(){
@@ -130,7 +132,7 @@ export class AsciiField {
   // Retain the current frame, then dissolve into the new reveal without a cut.
   const snapshot=document.createElement('canvas');snapshot.width=this.canvas.width;snapshot.height=this.canvas.height;
   const context=snapshot.getContext('2d');if(context){context.drawImage(this.canvas,0,0);this.replaySnapshot=snapshot;this.replayElapsed=0}
-  this.time=0;this.flowOffset=0;this.sequenceOffset=0;this.paused=false;this.previous=0;this.render();this.schedule()
+  this.time=0;this.flowOffset=0;this.formationOffset=0;this.paused=false;this.previous=0;this.render();this.schedule()
  }
  render(){
   const c=this.context,w=this.width,h=this.height;if(!w||!h)return;this.frameCount++;

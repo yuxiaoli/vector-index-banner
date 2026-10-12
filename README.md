@@ -24,7 +24,7 @@ Requested palette: exact `#11FF00` on pure `#000000`.
 
 ## Motion and formation
 
-- The complete formation defaults to 45 seconds, including the opening drift. The original phase proportions are preserved: opening takes 19.8/115.8 of the total and assembly takes 96/115.8. At the default setting, opening lasts about 7.69 seconds and assembly about 37.31 seconds.
+- The complete formation defaults to 45 seconds: a fixed 10-second opening followed by 35 seconds of assembly. Selecting 30 seconds gives 20 seconds of assembly; selecting 60 seconds gives 50 seconds. The selected total includes both phases.
 - Local movement and text assembly use independent clocks. Overlapping smooth curves and stable per-particle seeds create irregular wandering without frame-to-frame random jitter. Each character stays within the viewport while its spread gradually settles into the final letters.
 - The background retains the original inverse-radius vortex and moving ribbons. Ambient movement uses a fixed 45-second calibration of the original 115.8-second clock, independently of the selected total formation time.
 - The wordmark resolves into precise, stable letters. Background characters and ribbons keep moving after formation; brightness and glyph crossfades remain continuous.
@@ -36,7 +36,7 @@ Requested palette: exact `#11FF00` on pure `#000000`.
 
 Flow speed ranges from 0.25× to 2×. Changing it preserves the current flow phase, particle positions, and formation progress, then changes future movement speed.
 
-Total formation time ranges from 30 to 60 seconds and defaults to 45 seconds. The selected total covers both opening drift and assembly. Changing it preserves the current sequence phase, particle positions, and progress, then changes the remaining pace. Replay begins a full cycle with the selected speed and total time.
+Total formation time ranges from 30 to 60 seconds and defaults to 45 seconds. It includes a fixed 10-second opening, followed by assembly for the remaining time. Adjusting the setting during the opening keeps its 10-second boundary fixed. During assembly, changes preserve current progress and particle positions, then change the remaining pace. Replay begins a full cycle with the selected speed and total time.
 
 Both settings remain adjustable while paused or in reduced motion, without starting movement. Native labelled range inputs support keyboard and touch interaction, with visible values and explanatory help.
 

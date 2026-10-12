@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { AsciiField, DEFAULTS, timingAt, glyphStateAt, particlePoseAt } from '../renderer.js';
 const canonicalDuration = DEFAULTS.revealDelay + DEFAULTS.wanderSeconds + DEFAULTS.revealSeconds;
 const wallAtCanonical = seconds => seconds * DEFAULTS.totalDuration / canonicalDuration;
+const wallAtSequenceStage = seconds => seconds <= 19.8 ? seconds / 19.8 * 10 : seconds <= canonicalDuration ? 10 + (seconds - 19.8) / 96 * (DEFAULTS.totalDuration - 10) : wallAtCanonical(seconds);
 
 let nextId = 1, callbacks = new Map(), dimensions = { width: 1440, height: 900 };
 const calls = { text: 0, fill: 0 }, listeners = {};
@@ -47,9 +48,9 @@ const canvas = {
   parentElement: { addEventListener() {}, removeEventListener() {} }
 };
 const field = new AsciiField(canvas);
-function frame(seconds) {
+function frameAtWall(seconds) {
   samples = new Map(); backgroundCells = new Map(); backgroundPositions = new Map();
-  field.time = wallAtCanonical(seconds); field.render();
+  field.time = seconds; field.render();
   const spatialInk = new Map();
   for (const [id, alpha] of backgroundCells) {
     const point = backgroundPositions.get(id), key = [Math.floor(point.x / field.cell), Math.floor(point.y / field.row)].join('|');
@@ -59,6 +60,7 @@ function frame(seconds) {
   // ink at fixed screen bins, while opacity continuity still uses stable IDs.
   return { glyphs: samples, cells: spatialInk };
 }
+const frame = seconds => frameAtWall(wallAtCanonical(seconds));
 function difference(a, b) {
   const keys = new Set([...a.keys(), ...b.keys()]);
   let massA = 0, massB = 0, absolute = 0, maximum = 0, visible = 0;
@@ -117,7 +119,11 @@ for (const [width, height] of [[1440, 900], [390, 844], [320, 568]]) {
   for (let seconds = afterFormation; seconds <= afterFormation + 5; seconds += .5) checkpoints.push(seconds);
   let maximum = 0;
   for (const seconds of checkpoints) {
-    const previous = frame(seconds), current = frame(seconds + 1 / 30);
+    const wall = wallAtSequenceStage(seconds), ambientRate = canonicalDuration / DEFAULTS.totalDuration;
+    const sequenceRate = wall < DEFAULTS.totalDuration ? Math.max(19.8 / 10, 96 / (DEFAULTS.totalDuration - 10)) : 0;
+    const previous = frameAtWall(wall), before = field.getFrameState();
+    const current = frameAtWall(wall + (1 / 30) / Math.max(ambientRate, sequenceRate)), after = field.getFrameState();
+    assert.ok(after.flowSeconds - before.flowSeconds <= 1 / 30 + 1e-10 && after.sequenceSeconds - before.sequenceSeconds <= 1 / 30 + 1e-10, 'both clocks preserve the canonical-step budget');
     const delta = difference(previous.glyphs, current.glyphs).maximum;
     maximum = Math.max(maximum, delta);
     assert.ok(delta < .01, `${label}: no canonical-phase opacity jumps at ${seconds}s (${delta})`);
@@ -197,4 +203,4 @@ assert.equal(callbacks.size, 0, 'a page loaded hidden does not schedule animatio
 document.hidden = false; listeners.visibilitychange();
 assert.equal(callbacks.size, 1, 'a page loaded hidden starts when made visible');
 hiddenField.destroy(); assert.equal(callbacks.size, 0);
-console.log('PASS: perceptible background flow after assembly; .01 identity-based canonical-phase opacity bound; historical stage proportions; continuous glyph crossfades; pause/offscreen/visibility clocks; dissolve replay; reduced-motion stillness; geometry and cleanup.');
+console.log('PASS: perceptible background flow after assembly; .01 identity-based canonical-phase opacity bound; fixed opening and independent canonical stage/ambient clocks; continuous glyph crossfades; pause/offscreen/visibility clocks; dissolve replay; reduced-motion stillness; geometry and cleanup.');
