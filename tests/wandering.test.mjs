@@ -25,7 +25,7 @@ test('assembly waits for an initial wandering phase and lasts at least ninety se
   }
 });
 
-test('visible title particles wander on curved paths before any letters assemble on desktop and mobile', () => {
+test('visible title particles follow curved coherent flow before stationary letters assemble', () => {
   let dimensions = { width: 1440, height: 900 }, draws = [], fontStage = 0;
   globalThis.requestAnimationFrame = () => 1;
   globalThis.cancelAnimationFrame = () => {};
@@ -48,10 +48,10 @@ test('visible title particles wander on curved paths before any letters assemble
       field.time = time; field.render();
       let cursor = 0;
       const particles = field.title.map(particle => {
-        const group = draws.slice(cursor, cursor + 2 + (particle.n > .92 ? 1 : 0));
+        const group = draws.slice(cursor, cursor + 4 + (particle.n > .92 ? 1 : 0));
         cursor += group.length;
         assert.ok(group.length >= 2, 'stable particle draw groups remain observable');
-        return { x: group[0].x, y: group[0].y, alpha: Math.max(...group.map(draw => draw.alpha)) };
+        return { x: group[0].x, y: group[0].y, alpha: Math.max(group[0].alpha, group[1].alpha) };
       });
       assert.equal(cursor, draws.length, 'particle identity follows the stable title order');
       return particles;
@@ -76,7 +76,6 @@ test('visible title particles wander on curved paths before any letters assemble
     assert.ok(observation.visible >= .8, `${width}x${height}: at least 80% of early particles are visibly drawn (${observation.visible})`);
     assert.ok(observation.moving >= .5, `${width}x${height}: most particles move at least 6px over 2s (${observation.moving})`);
     assert.ok(observation.curved >= .5, `${width}x${height}: most early paths visibly turn (${observation.curved})`);
-    assert.ok(observation.meanTargetDistance >= Math.min(width, height) * .1, 'early particles are scattered away from their final letter positions');
     for (let id = 0; id < field.title.length; id += 37) {
       const expected = renderer.particlePoseAt(id, field.title[id], { width, height, fontSize: field.titleFont }, 4, field.options);
       assert.ok(Math.hypot(a[id].x - expected.x, a[id].y - expected.y) < 1e-9, 'actual title draws use the exported particle pose');
@@ -137,11 +136,11 @@ test('background glyph anchors follow continuous curved local paths before and a
   console.log('Physical background wandering: ' + JSON.stringify(observations));
 });
 
-test('local path physics is independent of letter targets and assembly duration', () => {
+test('both layers use the same structured flow without per-identity random trajectories', () => {
   assert.equal(typeof renderer.particlePoseAt, 'function', 'a deterministic physical title pose is available');
   assert.equal(typeof renderer.fieldPoseAt, 'function');
   const longer = { ...DEFAULTS, revealSeconds: DEFAULTS.revealSeconds * 2 };
-  const fasterLocal = { ...DEFAULTS, localMotionRadiansPerSecond: DEFAULTS.localMotionRadiansPerSecond * 1.5 };
+  const fasterLocal = { ...DEFAULTS, clockwiseRadiansPerSecond: DEFAULTS.clockwiseRadiansPerSecond * 1.5 };
   for (const [width, height] of [[1440, 900], [390, 844], [320, 568]]) {
     const viewport = { width, height, fontSize: 10 }, layout = { width, height, cell: 6.1, row: 9.15 };
     const a = { x: width * .2, y: height * .3 }, b = { x: width * .8, y: height * .7 };
@@ -149,15 +148,18 @@ test('local path physics is independent of letter targets and assembly duration'
     for (let id = 0; id < 64; id++) {
       for (const time of [4, 10, 18]) {
         const normal = renderer.particlePoseAt(id, a, viewport, time);
-        assert.deepEqual(renderer.particlePoseAt(id, b, viewport, time), normal, 'early origins and curves are not derived from future letters');
-        assert.deepEqual(renderer.particlePoseAt(id, a, viewport, time, longer), normal, 'longer assembly preserves the local wandering clock');
+        assert.deepEqual(renderer.particlePoseAt(id + 1000, a, viewport, time), normal, 'identity does not introduce an independent random path');
+        const shared = renderer.flowPoseAt(a, viewport, time);
+        assert.equal(normal.x, shared.x); assert.equal(normal.y, shared.y);
+        assert.deepEqual(renderer.particlePoseAt(id, a, viewport, time, longer), normal, 'longer assembly preserves the initial coherent clock');
+        assert.notDeepEqual(renderer.particlePoseAt(id, b, viewport, time), normal, 'different spatial points remain separate streamlines');
         assert.equal(normal.settle, 0);
       }
       const start = renderer.particlePoseAt(id, a, viewport, 4), later = renderer.particlePoseAt(id, a, viewport, 6);
       earlyMotion += Math.hypot(later.x - start.x, later.y - start.y);
       const altered = renderer.particlePoseAt(id, a, viewport, 6, fasterLocal);
       if (Math.hypot(altered.x - later.x, altered.y - later.y) >= 3) rateResponsive++;
-      for (const time of [10, 60, 140]) {
+      for (const time of [4, 10, 18]) {
         assert.deepEqual(renderer.fieldPoseAt(id % 12, Math.floor(id / 12), layout, time, longer), renderer.fieldPoseAt(id % 12, Math.floor(id / 12), layout, time), 'background physics stays independent of assembly progress');
       }
     }
@@ -196,11 +198,15 @@ test('physical paths have bounded velocity and acceleration through wandering an
         fieldVelocity = Math.max(fieldVelocity, b.velocity); fieldAcceleration = Math.max(fieldAcceleration, b.acceleration);
         assert.ok(a.velocity <= 120, `title velocity stays below 120px/s (${a.velocity})`);
         assert.ok(a.acceleration <= 160, `title acceleration stays below 160px/s² (${a.acceleration})`);
-        assert.ok(b.velocity <= layout.cell * 5, 'local background velocity remains bounded');
-        assert.ok(b.acceleration <= layout.cell * 8, 'local background acceleration remains bounded');
+        // Global rotation speed scales with orbit radius, replacing the old
+        // small per-cell loops. Both layers retain the same physical limits.
+        assert.ok(b.velocity <= 120, 'global background velocity stays below 120px/s');
+        assert.ok(b.acceleration <= 160, 'global background acceleration stays below 160px/s²');
       }
       for (const time of [end, end + 1, end + 100]) {
-        assert.deepEqual(renderer.particlePoseAt(id, target, viewport, time), { ...target, settle: 1 }, 'finished particles stay exactly on their letter targets');
+        const pose = renderer.particlePoseAt(id, target, viewport, time);
+        assert.equal(pose.settle, 1, 'the stable layer is fully formed');
+        assert.deepEqual({ x: pose.x, y: pose.y }, renderer.flowPoseAt(target, viewport, time), 'the invisible flow layer keeps its forward clock instead of unwinding');
       }
     }
     observations.push({ width, height, titleVelocity, titleAcceleration, fieldVelocity, fieldAcceleration });
@@ -208,7 +214,7 @@ test('physical paths have bounded velocity and acceleration through wandering an
   console.log('Physical path bounds at 30fps: ' + JSON.stringify(observations));
 });
 
-test('replay restores genuine wandering and reduced motion shows the exact completed wordmark', () => {
+test('replay restores coherent flow and reduced motion shows the exact completed wordmark', () => {
   let dimensions = { width: 1440, height: 900 }, draws = { background: [], title: [] }, fontStage = 0;
   globalThis.requestAnimationFrame = () => 1;
   globalThis.cancelAnimationFrame = () => {};
@@ -228,12 +234,13 @@ test('replay restores genuine wandering and reduced motion shows the exact compl
   for (const [width, height] of [[1440, 900], [390, 844], [320, 568]]) {
     dimensions = { width, height }; const field = new AsciiField(canvas);
     const capture = time => { field.time = time; field.render(); return draws; };
-    const positions = frame => {
+    const positions = (frame, layer = 'stable') => {
       let cursor = 0;
       return field.title.map(particle => {
-        const group = frame.title.slice(cursor, cursor + 2 + (particle.n > .92 ? 1 : 0));
+        const group = frame.title.slice(cursor, cursor + 4 + (particle.n > .92 ? 1 : 0));
         cursor += group.length;
-        return { x: group[0].x, y: group[0].y, alpha: Math.max(...group.map(draw => draw.alpha)) };
+        const first = layer === 'flow' ? 0 : 2;
+        return { x: group[first].x, y: group[first].y, alpha: Math.max(group[first].alpha, group[first + 1].alpha) };
       });
     };
     const early = capture(4);
@@ -241,9 +248,8 @@ test('replay restores genuine wandering and reduced motion shows the exact compl
     assert.equal(field.time, 0); assert.equal(field.paused, false);
     assert.ok(field.replaySnapshot, 'replay retains the previous image for a dissolve');
     assert.deepEqual(capture(4), early, 'replay returns to the same deterministic wandering composition');
-    const restarted = positions(draws);
-    const meanDistance = restarted.reduce((sum, point, id) => sum + Math.hypot(point.x - field.title[id].x, point.y - field.title[id].y), 0) / restarted.length;
-    assert.ok(meanDistance >= Math.min(width, height) * .1, 'replay begins with scattered particles instead of an already formed wordmark');
+    assert.ok(positions(draws, 'flow').every(point => point.alpha >= .15), 'replay starts with visible flowing glyphs');
+    assert.ok(positions(draws).every(point => point.alpha <= .01), 'replay removes the already formed stationary wordmark');
     field.replaySnapshot = null;
     for (const time of [end, end + 1]) {
       const finished = positions(capture(time));

@@ -3,7 +3,7 @@ import { AsciiField, DEFAULTS, timingAt, glyphStateAt, particlePoseAt } from '..
 
 let nextId = 1, callbacks = new Map(), dimensions = { width: 1440, height: 900 };
 const calls = { text: 0, fill: 0 }, listeners = {};
-let samples = new Map(), backgroundCells = new Map(), backgroundIndex = -1, lastBackgroundPosition = null, titleCommandIndex = 0;
+let samples = new Map(), backgroundCells = new Map(), backgroundPositions = new Map(), backgroundIndex = -1, lastBackgroundPosition = null, titleCommandIndex = 0;
 globalThis.requestAnimationFrame = fn => { const id = nextId++; callbacks.set(id, fn); return id; };
 globalThis.cancelAnimationFrame = id => callbacks.delete(id);
 globalThis.window = { devicePixelRatio: 3, addEventListener() {}, removeEventListener() {} };
@@ -27,6 +27,7 @@ const context = {
     if (this.textBaseline === 'middle') {
       if (!lastBackgroundPosition || x !== lastBackgroundPosition.x || y !== lastBackgroundPosition.y) backgroundIndex++;
       lastBackgroundPosition = { x, y };
+      backgroundPositions.set(backgroundIndex, { x, y });
       const key = ['background', backgroundIndex, char].join('|');
       samples.set(key, (samples.get(key) || 0) + alpha);
       backgroundCells.set(backgroundIndex, (backgroundCells.get(backgroundIndex) || 0) + alpha);
@@ -45,9 +46,16 @@ const canvas = {
 };
 const field = new AsciiField(canvas);
 function frame(seconds) {
-  samples = new Map(); backgroundCells = new Map();
+  samples = new Map(); backgroundCells = new Map(); backgroundPositions = new Map();
   field.time = seconds; field.render();
-  return { glyphs: samples, cells: backgroundCells };
+  const spatialInk = new Map();
+  for (const [id, alpha] of backgroundCells) {
+    const point = backgroundPositions.get(id), key = [Math.floor(point.x / field.cell), Math.floor(point.y / field.row)].join('|');
+    spatialInk.set(key, (spatialInk.get(key) || 0) + alpha);
+  }
+  // A transported source can keep its per-id opacity constant. Measure visible
+  // ink at fixed screen bins, while opacity continuity still uses stable IDs.
+  return { glyphs: samples, cells: spatialInk };
 }
 function difference(a, b) {
   const keys = new Set([...a.keys(), ...b.keys()]);

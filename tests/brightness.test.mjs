@@ -63,7 +63,7 @@ test('fully revealed moving background uses clearly visible individual glyph opa
   assert.ok(DEFAULTS.revealSeconds >= 90);
 });
 
-test('absolute background contrast changes remain stronger over two and five seconds after reveal', () => {
+test('absolute screen-space background ink transport stays visible over two and five seconds after reveal', () => {
   let dimensions = { width: 1440, height: 900 }, nextId = 1, cells = new Map(), cellIndex = -1, lastPosition = null;
   globalThis.requestAnimationFrame = () => nextId++;
   globalThis.cancelAnimationFrame = () => {};
@@ -79,7 +79,8 @@ test('absolute background contrast changes remain stronger over two and five sec
       assert.ok(Number.isFinite(this.globalAlpha) && this.globalAlpha >= 0 && this.globalAlpha <= 1, 'background alpha remains finite and bounded');
       if (!lastPosition || x !== lastPosition.x || y !== lastPosition.y) cellIndex++;
       lastPosition = { x, y };
-      cells.set(cellIndex, (cells.get(cellIndex) || 0) + this.globalAlpha);
+      const cell = cells.get(cellIndex) || { x, y, alpha: 0 };
+      cell.alpha += this.globalAlpha; cells.set(cellIndex, cell);
     }
   };
   const canvas = {
@@ -96,19 +97,30 @@ test('absolute background contrast changes remain stronger over two and five sec
       assert.equal(cells.size, Math.ceil(width / field.cell) * Math.ceil(height / field.row));
       return cells;
     });
+    const screenInk = frame => {
+      const bins = new Map();
+      for (const point of frame.values()) {
+        const key = [Math.floor(point.x / field.cell), Math.floor(point.y / field.row)].join('|');
+        bins.set(key, (bins.get(key) || 0) + point.alpha);
+      }
+      return bins;
+    };
+    const reference = screenInk(frames[0]);
     const meanChange = later => {
+      const transported = screenInk(later);
       let absolute = 0;
-      for (const [key, alpha] of frames[0]) absolute += Math.abs(alpha - later.get(key));
+      for (const key of new Set([...reference.keys(), ...transported.keys()])) absolute += Math.abs((reference.get(key) || 0) - (transported.get(key) || 0));
       return absolute / frames[0].size;
     };
     observations.push({ width, height, afterTwoSeconds: meanChange(frames[1]), afterFiveSeconds: meanChange(frames[2]) });
     field.destroy();
   }
-  console.log('Absolute background alpha change: ' + JSON.stringify(observations));
+  console.log('Absolute screen-space background ink transport: ' + JSON.stringify(observations));
   for (const observation of observations) {
     const label = `${observation.width}x${observation.height}`;
     // Absolute change cannot be satisfied by normalizing against an equally dim frame.
-    // Compare each cell's summed crossfade weight to isolate broad moving contrast.
+    // Fixed screen bins observe advected ink, normalized by source glyph count;
+    // constant logical-id alpha must not be mistaken for a static composition.
     assert.ok(observation.afterTwoSeconds >= .03, `${label}: mean absolute background alpha change over 2s ${observation.afterTwoSeconds} must reach .03`);
     assert.ok(observation.afterFiveSeconds >= .047, `${label}: mean absolute background alpha change over 5s ${observation.afterFiveSeconds} must reach .047`);
   }
