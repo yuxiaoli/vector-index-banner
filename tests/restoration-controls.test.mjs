@@ -216,3 +216,55 @@ test('controlled shader clocks preserve historical paint and the strict default 
   }
   console.log('Restored phase-clock opacity characterization: ' + JSON.stringify(observations));
 });
+
+test('formation duration accepts ten seconds in both construction and the live setter', () => {
+  const constructed = createHarness(renderer, 390, 844, { formationDuration: 10 });
+  const constructorDuration = constructed.field.formationDuration; constructed.field.destroy();
+  const live = createHarness(renderer, 390, 844); live.field.time = 30;
+  const before = live.field.getFrameState(), frame = live.capture(), returnedDuration = live.field.setFormationDuration(10), after = live.field.getFrameState();
+  equalClocks(after, before); equalFrame(live.capture(), frame);
+  const observation = { constructorDuration, returnedDuration, storedDuration: after.formationDuration, progressBefore: before.formationProgress, progressAfter: after.formationProgress };
+  console.log('Ten-second minimum duration: ' + JSON.stringify(observation)); live.field.destroy();
+  assert.equal(constructorDuration, 10, 'a ten-second constructor duration is accepted');
+  assert.equal(returnedDuration, 10, 'the live setter accepts ten seconds');
+  assert.equal(after.formationDuration, 10);
+});
+
+test('ten-second formation preserves progress, pause clocks, replay settings and reduced stillness', () => {
+  const observations = [], intro = baseline.DEFAULTS.revealDelay + baseline.DEFAULTS.wanderSeconds;
+  for (const [width, height] of [[1440, 900], [390, 844], [320, 568]]) {
+    const harness = createHarness(renderer, width, height, { formationDuration: 10 }), { field } = harness;
+    field.time = intro - .001; assert.equal(field.formationProgress, 0, 'the shorter duration preserves the initial disorder gate');
+    field.time = intro + 4; const before = field.getFrameState(), frame = harness.capture();
+    field.setFormationDuration(180); equalClocks(field.getFrameState(), before); equalFrame(harness.capture(), frame);
+    field.setFormationDuration(10); equalClocks(field.getFrameState(), before); equalFrame(harness.capture(), frame);
+    harness.tick(1000); harness.tick(1050); const advanced = field.getFrameState();
+    assert.ok(Math.abs(advanced.formationProgress - before.formationProgress - .05 / 10) < 1e-10, 'remaining progress advances at the ten-second rate');
+    assert.ok(Math.abs(advanced.flowSeconds - before.flowSeconds - .05) < 1e-10, 'formation duration leaves the flow speed unchanged');
+    field.setPaused(true); const paused = field.getFrameState(), pausedFrame = harness.capture();
+    field.setFormationDuration(10); field.tick(6000); equalClocks(field.getFrameState(), paused); equalFrame(harness.capture(), pausedFrame);
+    assert.equal(harness.callbacks.size, 0, 'a ten-second duration input cannot resume a deliberate pause');
+    field.setPaused(false); harness.tick(7000); equalClocks(field.getFrameState(), paused);
+    field.setFlowSpeed(.5); field.replay();
+    assert.equal(field.time, 0); assert.equal(field.formationProgress, 0); assert.equal(field.flowTime, 0);
+    assert.equal(field.formationDuration, 10); assert.equal(field.flowSpeed, .5);
+    field.replaySnapshot = null; field.time = intro + 10;
+    assert.equal(field.formationProgress, 1, 'replay completes a full ten-second formation after the unchanged intro');
+    const title = harness.capture().filter(call => call.baseline === 'top'); let cursor = 0;
+    for (const point of field.title) {
+      const group = title.slice(cursor, cursor + 2 + (point.n > .92 ? 1 : 0)); cursor += group.length;
+      assert.equal(group[0].x, point.x); assert.equal(group[0].y, point.y);
+      assert.equal(group[1].x, point.x); assert.equal(group[1].y, point.y);
+      assert.ok(Math.max(group[0].alpha, group[1].alpha) >= .8, 'short cycles finish with exact readable letters');
+    }
+    assert.equal(cursor, title.length);
+    field.setReduced(true); const still = harness.capture();
+    field.setFormationDuration(180); equalFrame(harness.capture(), still);
+    field.setFormationDuration(10); equalFrame(harness.capture(), still);
+    const frozen = field.getFrameState(); field.tick(20000); field.replay(); equalClocks(field.getFrameState(), frozen);
+    assert.equal(field.formationDuration, 10); assert.equal(harness.callbacks.size, 0);
+    field.time = 1000; equalFrame(harness.capture(), still);
+    observations.push({ width, height, progressBefore: before.formationProgress, progressAfter: advanced.formationProgress, flowAdvance: advanced.flowSeconds - before.flowSeconds, replayDuration: 10, completionSeconds: intro + 10 }); field.destroy();
+  }
+  console.log('Ten-second formation lifecycle: ' + JSON.stringify(observations));
+});

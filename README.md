@@ -36,7 +36,7 @@ Requested palette: exact `#11FF00` on pure `#000000`.
 
 Flow speed ranges from 0.25× to 2×. Changing it preserves the current flow phase, particle positions, and formation progress, then changes future movement speed.
 
-Formation duration ranges from 45 to 180 seconds and defaults to 96 seconds. It describes the formation phase; the initial 19.8 seconds are separate. Changing duration preserves current progress and changes the remaining pace. It does not restart the animation. Replay begins a full cycle with the selected speed and duration.
+Formation duration ranges from 10 to 180 seconds and defaults to 96 seconds. It describes the formation phase; the initial 19.8 seconds are separate. Changing duration preserves current progress and changes the remaining pace. It does not restart the animation. Replay begins a full cycle with the selected speed and duration.
 
 Both settings remain adjustable while paused or in reduced motion, without starting movement. Native labelled range inputs support keyboard and touch interaction, with visible values and explanatory help.
 

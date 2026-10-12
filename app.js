@@ -23,7 +23,7 @@ function sync(message=''){
 try{
  renderer=new AsciiField(canvas,{reduced:preference.matches});scene.classList.add('canvas-ready');sync();syncFlow();syncDuration();
  flowSpeed.addEventListener('input',()=>{const value=Number(flowSpeed.value);if(Number.isFinite(value))selectedFlow=Math.max(.25,Math.min(2,value));renderer.setFlowSpeed(selectedFlow);syncFlow()});
- formationDuration.addEventListener('input',()=>{const value=Number(formationDuration.value);if(Number.isFinite(value))selectedDuration=Math.max(45,Math.min(180,value));renderer.setFormationDuration(selectedDuration);syncDuration()});
+ formationDuration.addEventListener('input',()=>{const value=Number(formationDuration.value);if(Number.isFinite(value))selectedDuration=Math.max(10,Math.min(180,value));renderer.setFormationDuration(selectedDuration);syncDuration()});
  pause.addEventListener('click',()=>{userPaused=!userPaused;renderer.setPaused(userPaused||pageHidden);sync()});
  replay.addEventListener('click',()=>{userPaused=false;renderer.replay();if(pageHidden)renderer.setPaused(true);sync('Replaying the gradual reveal. Flow continues.')});
  motion.addEventListener('click',()=>{motionOverride=!renderer.reduced;renderer.setReduced(motionOverride);if(!motionOverride){userPaused=false;renderer.setPaused(pageHidden)}sync()});

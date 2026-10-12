@@ -139,9 +139,9 @@ bounded.elements['#formation-duration'].input('300');
 assert.equal(bounded.field.formationDuration,180,'duration cannot exceed its declared maximum');
 assert.equal(bounded.elements['#formation-duration'].value,'180','duration input returns to its bounded setting');
 bounded.elements['#formation-duration'].input('0');
-assert.equal(bounded.field.formationDuration,45,'duration cannot fall below its declared minimum');
+assert.equal(bounded.field.formationDuration,10,'duration cannot fall below its declared minimum');
 bounded.elements['#formation-duration'].input('not-a-number');
-assert.equal(bounded.field.formationDuration,45,'invalid input preserves the last valid duration');
+assert.equal(bounded.field.formationDuration,10,'invalid input preserves the last valid duration');
 
 const pausedSettings=mount();
 pausedSettings.elements['#pause'].click();
@@ -189,7 +189,7 @@ assert.equal((html.match(/id="status"/g)??[]).length,1);
 
 for(const [id,label,value,min,max,step,output] of [
  ['flow-speed','Flow speed','1','0.25','2','0.05','flow-value'],
- ['formation-duration','Formation duration','96','45','180','1','duration-value']
+ ['formation-duration','Formation duration','96','10','180','1','duration-value']
 ]){
  const tag=html.match(new RegExp(`<input\\b[^>]*\\bid="${id}"[^>]*>`))?.[0];
  assert.ok(tag,`${label} exists in the shipped page`);

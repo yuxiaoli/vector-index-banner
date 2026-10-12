@@ -78,7 +78,7 @@ export class AsciiField {
   if(!this.context)throw new Error('Canvas 2D unavailable');
   this.time=0;this.paused=false;this.reduced=!!options.reduced;this.visible=!document.hidden;this.destroyed=false;this.raf=0;this.previous=0;this.lastDraw=0;
   this.flowSpeed=clamp(Number(this.options.flowSpeed)||1,.25,2);this.flowOffset=0;
-  this.formationDuration=clamp(Number(options.formationDuration??this.options.revealSeconds)||96,45,180);this.formationOffset=0;
+  this.formationDuration=clamp(Number(options.formationDuration??this.options.revealSeconds)||96,10,180);this.formationOffset=0;
   this.options.flowSpeed=this.flowSpeed;this.options.revealSeconds=this.formationDuration;
   this.replaySnapshot=null;this.replayElapsed=0;this.pointer={x:0,y:0};this.target={x:0,y:0};this.frameCount=0;
   this.onPointer=e=>{const r=canvas.getBoundingClientRect();this.target={x:((e.clientX-r.left)/r.width-.5)*8,y:((e.clientY-r.top)/r.height-.5)*6}};
@@ -117,7 +117,7 @@ export class AsciiField {
  setFormationDuration(seconds){
   const value=Number(seconds);if(!Number.isFinite(value))return this.formationDuration;
   const progress=this.formationProgress,active=Math.max(0,this.time-this.options.revealDelay-this.options.wanderSeconds);
-  this.formationDuration=clamp(value,45,180);this.options.revealSeconds=this.formationDuration;
+  this.formationDuration=clamp(value,10,180);this.options.revealSeconds=this.formationDuration;
   this.formationOffset=progress-active/this.formationDuration;this.render();return this.formationDuration;
  }
  replay(){
