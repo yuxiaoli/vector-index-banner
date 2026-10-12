@@ -18,7 +18,7 @@ function sync(message=''){
  motion.querySelector('.motion-state').textContent=renderer.reduced?'off':'on';
  status.textContent=renderer.reduced
   ?(motionOverride===null&&preference.matches?'Still composition. Your device prefers reduced motion.':'Still composition. Enable motion to animate.')
-  :userPaused?'Animation paused. Select Play to continue.':message||'Clockwise flow. Noise gradually becomes Vector Index.';
+  :userPaused?'Animation paused. Select Play to continue.':message||'Irregular wandering. Noise gradually becomes Vector Index.';
 }
 try{
  renderer=new AsciiField(canvas,{reduced:preference.matches});scene.classList.add('canvas-ready');sync();syncFlow();syncDuration();

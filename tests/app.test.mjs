@@ -71,7 +71,7 @@ assert.equal(reduced.field.paused,false,'deliberate enable starts playback');
 assert.equal(reduced.elements['#motion'].attributes['aria-pressed'],'true','motion on is pressed');
 assert.equal(reduced.elements['#pause'].disabled,false);
 assert.equal(reduced.elements['#replay'].disabled,false);
-assert.match(reduced.elements['#status'].textContent,/Clockwise flow.*Noise gradually becomes Vector Index/);
+assert.match(reduced.elements['#status'].textContent,/Irregular wandering.*Noise gradually becomes Vector Index/);
 reduced.media.change(false);reduced.media.change(true);
 assert.equal(reduced.field.reduced,false,'explicit enabled choice survives device preference changes');
 

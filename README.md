@@ -1,12 +1,14 @@
-# Vector Index — ASCII Fluid
+# Vector Index — ASCII Signal
 
 Original, dependency-free Canvas 2D banner study. No external fonts, trackers, WebGL, or backend.
 
-A shared clockwise fluid field starts with seeded, dispersed characters whose positions do not depend on the final text. Gentle radial turbulence gives the flow variation. Polar attraction gradually organizes the cloud into the wordmark before it resolves into precise, stable letters. The surrounding field continues circulating.
+Individual characters follow seeded, irregular curved paths before gradually assembling into a custom bitmap wordmark. Their scattered starting positions do not depend on the final letters. The background samples an imaginary text grid through an inverse-radius twist, with moving ribbons, CRT scanlines, and a restrained green phosphor offset.
 
 ## Run
 
 Serve this directory with any static HTTP server. Run `npm run check` for syntax, motion, brightness, and control checks.
+
+The restoration regression compares rendered frames with commit `192cd7374e791883865bf88a65d50c3010104ad8`. Checks require Git and that commit in local history; a normal full clone supplies it.
 
 ## Reuse
 
@@ -20,15 +22,13 @@ This independent visual study does not connect to or modify the Vector Index pro
 
 Requested palette: exact `#11FF00` on pure `#000000`.
 
-## Flow and formation
+## Motion and formation
 
 - The default 1.8-second lead-in and 18-second initial flow precede 96 seconds of formation. The default complete sequence lasts 115.8 seconds.
-- Background and forming characters start dispersed and use the same continuous clockwise field. Local turbulence remains subordinate to the common direction; motion is deterministic and has no frame-to-frame random jitter.
-- The common flow advances at 0.10 radians per second, roughly one turn every 63 seconds. Its bounded paths keep characters inside the viewport.
-- Organization changes particle geometry: radii approach the target structure and angular attraction proceeds clockwise. A complementary stationary layer resolves the exact final letters after substantial organization. The angular flow never unwinds as the text resolves.
-- Background ink begins diffuse and gradually develops organized ribbons, so the opening does not carry a fixed text silhouette or ribbon pattern.
-- The background continues circulating once the wordmark is readable. Brightness and glyph crossfades remain continuous.
-- Background glyphs use a staggered 56-second cycle with 12-second crossfades.
+- Local movement and text assembly use independent clocks. Overlapping smooth curves and stable per-particle seeds create irregular wandering without frame-to-frame random jitter. Each character stays within the viewport while its spread gradually settles into the final letters.
+- At the default 1× flow speed, the background vortex advances at 0.04 radians per second, about one turn every 2.6 minutes. The ribbons move visibly across the character grid within a few seconds; the arc phase advances at 0.09 radians per second.
+- The wordmark resolves into precise, stable letters. Background characters and ribbons keep moving after formation; brightness and glyph crossfades remain continuous.
+- At 1× flow speed, background glyphs use a staggered 56-second cycle with 12-second crossfades. Changing flow speed also changes future curve, vortex, arc, shimmer, and glyph-cycle movement through the same integrated flow clock.
 - Pointer motion is subtle and eases over 2.4 seconds. Replay dissolves over 5.5 seconds and restarts the same sequence.
 - System reduced-motion starts with a clearly identified still composition and complete wordmark. Enabling motion starts the flow for this page; pause and replay remain separate controls.
 
@@ -42,7 +42,7 @@ Both settings remain adjustable while paused or in reduced motion, without start
 
 ## Brightness
 
-Dim background strokes retain the verified continuous opacity lift, semibold font, and lighter black vignette and scanline overlay. The exact pigment and pure black background are preserved. Brightness regressions run alongside clockwise direction, continuity, progressive legibility, replay, and lifecycle checks.
+Dim background strokes retain the verified continuous opacity lift, semibold font, and lighter black vignette and scanline overlay. The exact pigment and pure black background are preserved. Brightness regressions run alongside wandering-path continuity, independent motion and assembly timing, final wordmark accuracy, replay, and lifecycle checks.
 
 ## GitHub Pages
 

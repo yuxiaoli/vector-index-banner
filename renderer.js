@@ -1,15 +1,14 @@
 /**
  * Vector Index / ASCII field, original Canvas 2D implementation.
  * Dependency-free, no GPU requirement. Instantiate, then destroy on unmount.
- * One coherent clockwise field carries glyphs through a gradual text reveal.
+ * The field samples an imaginary text grid through an inverse-radius twist.
  */
 export const DEFAULTS = Object.freeze({
  maxDpr: 1.5, fps: 30, revealSeconds: 96, revealDelay: 1.8, wanderSeconds: 18, flowSpeed: 1,
- // Legacy texture clocks remain available from timingAt; shared motion below
- // makes one clockwise turn in about 63 seconds, independent of assembly.
+ // The ribbon travels across several character cells in a few seconds, while
+ // the full field still takes over two minutes to make one gentle turn.
  vortexRadiansPerSecond: .04, arcRadiansPerSecond: .09,
- clockwiseRadiansPerSecond: .1, flowTurbulenceRadians: .1,
- flowRadialTurbulence: .02,
+ localMotionRadiansPerSecond: .9,
  glyphCycleSeconds: 56, glyphCrossfadeSeconds: 12,
  shimmerRadiansPerSecond: .028, pointerEaseSeconds: 2.4,
  replayFadeSeconds: 5.5, background: '#000000'
@@ -40,54 +39,38 @@ export function glyphStateAt(i,j,t,options=DEFAULTS) {
  const interval=options.glyphCrossfadeSeconds/options.glyphCycleSeconds;
  return { from:ALPHABET[Math.floor(hash(i+cycle*137,j+37)*ALPHABET.length)], to:ALPHABET[Math.floor(hash(i+(cycle+1)*137,j+37)*ALPHABET.length)], blend:smooth((phase-cycle-(1-interval))/interval) };
 }
-// One spatially coherent field carries every glyph clockwise on bounded ellipses.
-export function flowPoseAt(point,viewport,seconds,options=DEFAULTS){
- const w=viewport.width,h=viewport.height,cx=viewport.centerX??w/2,cy=viewport.centerY??h*(w<=700?.44:.46);
- const margin=Math.max(12,Math.min(w,h)*.025),ax=Math.max(0,Math.min(cx,w-cx)-margin),ay=Math.max(0,Math.min(cy,h-cy)-margin);
- if(!ax||!ay)return{x:cx,y:cy};
- const nx=(point.x-cx)/ax,ny=(point.y-cy)/ay,r=Math.hypot(nx,ny),a=Math.atan2(ny,nx),radius=r<=.94?r:.94+.01*Math.tanh((r-.94)/.01);
- const t=Math.max(0,viewport.flowSeconds??seconds*(options.flowSpeed??1)),phase=t*Math.max(0,options.clockwiseRadiansPerSecond);
- // Angular variation is common to the whole field; local variation is radial.
- const angle=a+phase+clamp(options.flowTurbulenceRadians,0,.1)*Math.sin(phase*.5);
- const distance=radius*(1+clamp(options.flowRadialTurbulence,0,.02)*Math.sin(phase*.7+a*2));
- return{x:cx+ax*distance*Math.cos(angle),y:cy+ay*distance*Math.sin(angle)};
-}
-export function seedOriginAt(id,viewport){
- const w=viewport.width,h=viewport.height,cx=viewport.centerX??w/2,cy=viewport.centerY??h*(w<=700?.44:.46);
- const margin=Math.max(12,Math.min(w,h)*.025),ax=Math.max(0,Math.min(cx,w-cx)-margin),ay=Math.max(0,Math.min(cy,h-cy)-margin);
- const radius=.94*Math.sqrt(hash(id+319,613)),angle=Math.PI*2*hash(id-127,91);
- return{x:cx+ax*radius*Math.cos(angle),y:cy+ay*radius*Math.sin(angle)};
-}
-export function organizedSourceAt(id,target,viewport,progress){
- const seed=seedOriginAt(id,viewport),p=clamp(progress);
- if(!p)return seed;if(p===1)return target;
- const w=viewport.width,h=viewport.height,cx=viewport.centerX??w/2,cy=viewport.centerY??h*(w<=700?.44:.46);
- const margin=Math.max(12,Math.min(w,h)*.025),ax=Math.max(1,Math.min(cx,w-cx)-margin),ay=Math.max(1,Math.min(cy,h-cy)-margin);
- const sx=(seed.x-cx)/ax,sy=(seed.y-cy)/ay,tx=(target.x-cx)/ax,ty=(target.y-cy)/ay;
- const start=Math.atan2(sy,sx),end=Math.atan2(ty,tx),turn=Math.PI*2,delta=((end-start)%turn+turn)%turn,organization=smooth(p);
- // A fixed positive correction organizes along clockwise arcs, never flights.
- const angle=start+delta*organization,radius=Math.hypot(sx,sy)+(Math.hypot(tx,ty)-Math.hypot(sx,sy))*organization;
- return{x:cx+ax*radius*Math.cos(angle),y:cy+ay*radius*Math.sin(angle)};
+// Stable, overlapping frequencies make curved paths without frame-wise noise.
+function curveAt(seed,seconds,rate){
+ const phase=seed*Math.PI*2,clock=Math.max(0,seconds)*rate*(.76+seed*.36);
+ return {
+  x:.62*Math.sin(clock+phase)+.26*Math.sin(clock*1.91+phase*.61)+.12*Math.cos(clock*.47-phase*1.7),
+  y:.57*Math.cos(clock*.83+phase*1.31)+.31*Math.sin(clock*1.37-phase*.73)+.12*Math.sin(clock*.53+phase*2.3)
+ };
 }
 export function particlePoseAt(id,target,viewport,seconds,options=DEFAULTS){
- const progress=viewport.formationProgress??timingAt(seconds,options).progress;
- return{...flowPoseAt(organizedSourceAt(id,target,viewport,progress),viewport,seconds,options),settle:smooth((progress-.35)/.65),organization:smooth(progress)};
-}
-export function fieldTargetAt(i,j,viewport){
- const w=viewport.width,h=viewport.height,cx=viewport.centerX??w/2,cy=viewport.centerY??h*(w<=700?.44:.46);
- const margin=Math.max(12,Math.min(w,h)*.025),ax=Math.max(0,Math.min(cx,w-cx)-margin),ay=Math.max(0,Math.min(cy,h-cy)-margin);
- const cols=Math.max(1,Math.ceil(w/viewport.cell)),rows=Math.max(1,Math.ceil(h/viewport.row));
- const u=2*(i+.5)/cols-1,v=2*(j+.5)/rows-1;
- if(!u&&!v)return{x:cx,y:cy};
- // Area-preserving square-to-disk mapping keeps corners out of a thin rim.
- const horizontal=Math.abs(u)>=Math.abs(v),radius=horizontal?u:v;
- const angle=horizontal?Math.PI/4*(v/u):Math.PI/2-Math.PI/4*(u/v);
- return{x:cx+ax*.92*radius*Math.cos(angle),y:cy+ay*.92*radius*Math.sin(angle)};
+ const w=viewport.width,h=viewport.height,size=Math.min(w,h),font=viewport.fontSize??14;
+ const marginX=Math.min(w/2,Math.max(8,font)),marginY=Math.min(h/2,Math.max(8,font));
+ const ampX=Math.min(56,size*.08,Math.max(0,(w-2*marginX)/4));
+ const ampY=Math.min(42,size*.065,Math.max(0,(h-2*marginY)/4));
+ // Scatter origins depend on identity and viewport, never on a letter target.
+ const originX=marginX+ampX+hash(id+319,91)*(w-2*(marginX+ampX));
+ const originY=marginY+ampY+hash(id-127,613)*(h-2*(marginY+ampY));
+ const curve=curveAt(hash(id+73,231),viewport.flowSeconds??seconds,options.localMotionRadiansPerSecond);
+ const delay=.1+hash(id+911,73)*.32;
+ const settle=smooth(((viewport.formationProgress??timingAt(seconds,options).progress)-delay)/(1-delay));
+ if(settle===1)return{x:target.x,y:target.y,settle};
+ const x=originX+ampX*curve.x,y=originY+ampY*curve.y;
+ return {x:x+(target.x-x)*settle,y:y+(target.y-y)*settle,settle};
 }
 export function fieldPoseAt(i,j,viewport,seconds,options=DEFAULTS){
- const progress=viewport.formationProgress??timingAt(seconds,options).progress;
- const source=organizedSourceAt(1000000+i+j*65536,fieldTargetAt(i,j,viewport),viewport,progress);
- return flowPoseAt(source,viewport,seconds,options);
+ const {width:w,height:h,cell,row}=viewport;
+ const marginX=Math.min(w/2,cell*.6),marginY=Math.min(h/2,row*.55);
+ const x=clamp((i+.5)*cell,marginX,w-marginX),y=clamp((j+.5)*row,marginY,h-marginY);
+ // Reserve enough room for the whole curve; edge glyphs never wrap or clip.
+ const ampX=Math.max(0,Math.min(cell*1.8,x-marginX,w-marginX-x));
+ const ampY=Math.max(0,Math.min(row*1.25,y-marginY,h-marginY-y));
+ const curve=curveAt(hash(i+571,j-613),viewport.flowSeconds??seconds,options.localMotionRadiansPerSecond);
+ return {x:x+ampX*curve.x,y:y+ampY*curve.y};
 }
 export class AsciiField {
  constructor(canvas,options={}) {
@@ -147,41 +130,38 @@ export class AsciiField {
  render(){
   const c=this.context,w=this.width,h=this.height;if(!w||!h)return;this.frameCount++;
   const frame=this.getFrameState(),t=this.reduced?DEFAULTS.revealDelay+DEFAULTS.wanderSeconds+DEFAULTS.revealSeconds+8:frame.wallSeconds;
-  const progress=this.reduced?1:frame.formationProgress,timing={...timingAt(t,this.options),progress,reveal:smooth(progress)},{reveal}=timing;
+  const flowSeconds=this.reduced?t:frame.flowSeconds,progress=this.reduced?1:frame.formationProgress;
+  const timing={...timingAt(flowSeconds,this.options),progress,reveal:smooth(progress)},{reveal}=timing;
   const cx=this.cx+(this.reduced?0:this.pointer.x),cy=this.cy+(this.reduced?0:this.pointer.y),size=Math.min(w,h);
   c.globalAlpha=1;c.fillStyle=this.options.background;c.fillRect(0,0,w,h);
   c.fillStyle='#11ff00';c.font=`600 ${this.row*.88}px "SFMono-Regular",Consolas,"Liberation Mono",monospace`;c.textAlign='center';c.textBaseline='middle';
-  const cols=Math.ceil(w/this.cell),rows=Math.ceil(h/this.row),intro=1-reveal,fieldViewport={width:w,height:h,cell:this.cell,row:this.row,flowSeconds:frame.flowSeconds,formationProgress:progress};
+  const cols=Math.ceil(w/this.cell),rows=Math.ceil(h/this.row),intro=1-reveal,fieldViewport={width:w,height:h,cell:this.cell,row:this.row,flowSeconds,formationProgress:progress};
   for(let j=0;j<rows;j++)for(let i=0;i<cols;i++){
    const x=(i+.5)*this.cell,y=(j+.5)*this.row,dx=(x-cx)/size,dy=(y-cy)/size,r=Math.hypot(dx,dy),a=Math.atan2(dy,dx);
-   // Sample a fixed source-space pattern; the shared field advects its ink.
-   const twist=1.5/(r+.23)+.6,ca=Math.cos(twist),sa=Math.sin(twist),sx=dx*ca-dy*sa,sy=dx*sa+dy*ca;
+   const twist=1.5/(r+.23)+timing.spin,ca=Math.cos(twist),sa=Math.sin(twist),sx=dx*ca-dy*sa,sy=dx*sa+dy*ca;
    const stripe=Math.sin(sx*32+Math.sin(sy*10)*.6),ribbon=Math.pow(Math.max(0,stripe),4);
-   const arc=Math.pow(Math.max(0,Math.sin(a*3+r*19)),10);
+   const arc=Math.pow(Math.max(0,Math.sin(a*3+r*19-timing.arc)),10);
    const core=1-Math.exp(-r*r*24),edge=clamp(1.18-r*.87);
    const centerClear=1-.85*reveal*Math.exp(-Math.pow((x-this.cx)/(this.wordmarkBounds.width*.63),6)-Math.pow((y-this.cy)/(this.wordmarkBounds.height*.74),4));
    let intensity=(.085+ribbon*.52+arc*.16)*core*edge*centerClear+intro*.15*Math.exp(-r*4);
+   // Brightness texture stays anchored while each glyph physically drifts.
    intensity*=.58+.42*hash(i+71,j-18);
-   // Initial ink is diffuse and seeded; the ordered ribbons emerge gradually.
-   const diffuse=.14+.06*hash(i+219,j-91);intensity=diffuse+(intensity-diffuse)*reveal;
    // Lift dim phosphor strokes without changing the field's slow motion clock.
-   const alpha=Math.pow(clamp(intensity*.64),.76),glyph=glyphStateAt(i,j,t,this.options),pose=this.reduced?{x,y}:fieldPoseAt(i,j,fieldViewport,t,this.options);
+   const alpha=Math.pow(clamp(intensity*.64),.76),glyph=glyphStateAt(i,j,flowSeconds,this.options),pose=this.reduced?{x,y}:fieldPoseAt(i,j,fieldViewport,t,this.options);
    c.globalAlpha=alpha*(1-glyph.blend);c.fillText(glyph.from,pose.x,pose.y);
    if(glyph.blend>0){c.globalAlpha=alpha*glyph.blend;c.fillText(glyph.to,pose.x,pose.y)}
   }
   c.font=`${this.titleFont}px "SFMono-Regular",Consolas,"Liberation Mono",monospace`;c.textAlign='left';c.textBaseline='top';
-  const titleViewport={width:w,height:h,fontSize:this.titleFont,flowSeconds:frame.flowSeconds,formationProgress:progress};
+  const titleViewport={width:w,height:h,fontSize:this.titleFont,flowSeconds,formationProgress:progress};
   for(let id=0;id<this.title.length;id++){
    const p=this.title[id],pose=this.reduced?{x:p.x,y:p.y,settle:1}:particlePoseAt(id,p,titleViewport,t,this.options),local=pose.settle;
-   // The stream keeps turning clockwise while the exact mark emerges in place.
+   // Bright, stable characters wander first and gradually settle into the mark.
    const char=p.n>.75?'+':p.n>.25?'#':'=',transition=.55+.45*smooth((local-.12)/.7);
    const shimmer=.965+.035*Math.sin(p.x*.023+p.y*.018+timing.shimmer);
    const opacity=(.72+.28*smooth(t/this.options.revealDelay))*shimmer*.96;
-   c.globalAlpha=opacity*(1-local)*(1-transition);c.fillText(p.n>.5?':':'.',pose.x,pose.y);
-   c.globalAlpha=opacity*(1-local)*transition;c.fillText(char,pose.x,pose.y);
-   c.globalAlpha=opacity*local*(1-transition);c.fillText(p.n>.5?':':'.',p.x,p.y);
-   c.globalAlpha=opacity*local*transition;c.fillText(char,p.x,p.y);
-   if(p.n>.92){c.globalAlpha=local*.1;c.fillText(char,p.x+.6,p.y)}
+   c.globalAlpha=opacity*(1-transition);c.fillText(p.n>.5?':':'.',pose.x,pose.y);
+   c.globalAlpha=opacity*transition;c.fillText(char,pose.x,pose.y);
+   if(p.n>.92){c.globalAlpha=local*.1;c.fillText(char,pose.x+.6,pose.y)}
   }
   if(this.replaySnapshot){c.globalAlpha=1-smooth(this.replayElapsed/this.options.replayFadeSeconds);c.drawImage(this.replaySnapshot,0,0,this.replaySnapshot.width,this.replaySnapshot.height,0,0,w,h)}
   c.globalAlpha=1;

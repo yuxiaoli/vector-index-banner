@@ -3,6 +3,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check renderer.js && node --check app.js && node tests/renderer.test.mjs && node tests/app.test.mjs && node tests/brightness.test.mjs && node tests/wandering.test.mjs && node tests/clockwise.test.mjs && node tests/disorder-controls.test.mjs"
+    "check": "node --check renderer.js && node --check app.js && node tests/renderer.test.mjs && node tests/app.test.mjs && node tests/brightness.test.mjs && node tests/wandering.test.mjs && node tests/restoration-controls.test.mjs"
   }
 }
