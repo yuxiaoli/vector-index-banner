@@ -14,7 +14,7 @@ function sync(message=''){
  motion.querySelector('.motion-state').textContent=renderer.reduced?'off':'on';
  status.textContent=renderer.reduced
   ?(motionOverride===null&&preference.matches?'Still composition. Your device prefers reduced motion.':'Still composition. Enable motion to animate.')
-  :userPaused?'Animation paused. Select Play to continue.':message||'Slow continuous flow.';
+  :userPaused?'Animation paused. Select Play to continue.':message||'Smooth continuous flow.';
 }
 try{
  renderer=new AsciiField(canvas,{reduced:preference.matches});scene.classList.add('canvas-ready');sync();

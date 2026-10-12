@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { AsciiField, DEFAULTS } from '../renderer.js';
+const afterFormation = DEFAULTS.revealDelay + DEFAULTS.wanderSeconds + DEFAULTS.revealSeconds + 16.2;
 
 test('fully revealed moving background uses clearly visible individual glyph opacity on desktop and mobile', () => {
-  let dimensions = { width: 1440, height: 900 }, nextId = 1, cells = new Map();
+  let dimensions = { width: 1440, height: 900 }, nextId = 1, cells = new Map(), cellIndex = -1, lastPosition = null;
   globalThis.requestAnimationFrame = () => nextId++;
   globalThis.cancelAnimationFrame = () => {};
   globalThis.window = { devicePixelRatio: 1, addEventListener() {}, removeEventListener() {} };
@@ -13,7 +14,7 @@ test('fully revealed moving background uses clearly visible individual glyph opa
     setTransform() {},
     fillRect() {
       assert.equal(this.fillStyle.toUpperCase(), '#000000');
-      this.fontStage = 0; cells = new Map();
+      this.fontStage = 0; cells = new Map(); cellIndex = -1; lastPosition = null;
     },
     set font(value) { this.fontValue = value; this.fontStage++; },
     get font() { return this.fontValue; },
@@ -23,8 +24,9 @@ test('fully revealed moving background uses clearly visible individual glyph opa
       // First font assignment is the background; the second is the wordmark.
       // Keep the strongest individual crossfade draw, rather than adding alpha
       // from two different glyphs and overstating how bright either glyph is.
-      const key = `${x}|${y}`;
-      cells.set(key, Math.max(cells.get(key) || 0, this.globalAlpha));
+      if (!lastPosition || x !== lastPosition.x || y !== lastPosition.y) cellIndex++;
+      lastPosition = { x, y };
+      cells.set(cellIndex, Math.max(cells.get(cellIndex) || 0, this.globalAlpha));
     }
   };
   const canvas = {
@@ -36,7 +38,7 @@ test('fully revealed moving background uses clearly visible individual glyph opa
   for (const [width, height] of [[1440, 900], [390, 844], [320, 568]]) {
     dimensions = { width, height };
     const field = new AsciiField(canvas);
-    for (const time of [60, 62, 65]) {
+    for (const time of [afterFormation, afterFormation + 2, afterFormation + 5]) {
       field.time = time; field.render();
       assert.equal(cells.size, Math.ceil(width / field.cell) * Math.ceil(height / field.row), 'every background cell is measured without wordmark contamination');
       const alphas = [...cells.values()].sort((a, b) => a - b);
@@ -58,25 +60,26 @@ test('fully revealed moving background uses clearly visible individual glyph opa
   }
   assert.equal(DEFAULTS.vortexRadiansPerSecond, .04);
   assert.equal(DEFAULTS.arcRadiansPerSecond, .09);
-  assert.equal(DEFAULTS.revealSeconds, 42);
+  assert.ok(DEFAULTS.revealSeconds >= 90);
 });
 
 test('absolute background contrast changes remain stronger over two and five seconds after reveal', () => {
-  let dimensions = { width: 1440, height: 900 }, nextId = 1, cells = new Map();
+  let dimensions = { width: 1440, height: 900 }, nextId = 1, cells = new Map(), cellIndex = -1, lastPosition = null;
   globalThis.requestAnimationFrame = () => nextId++;
   globalThis.cancelAnimationFrame = () => {};
   globalThis.window = { devicePixelRatio: 1, addEventListener() {}, removeEventListener() {} };
   globalThis.document = { hidden: false, addEventListener() {}, removeEventListener() {} };
   const context = {
     fontStage: 0, setTransform() {},
-    fillRect() { this.fontStage = 0; cells = new Map(); },
+    fillRect() { this.fontStage = 0; cells = new Map(); cellIndex = -1; lastPosition = null; },
     set font(value) { this.fontValue = value; this.fontStage++; },
     get font() { return this.fontValue; },
     fillText(char, x, y) {
       if (this.fontStage !== 1) return;
       assert.ok(Number.isFinite(this.globalAlpha) && this.globalAlpha >= 0 && this.globalAlpha <= 1, 'background alpha remains finite and bounded');
-      const key = `${x}|${y}`;
-      cells.set(key, (cells.get(key) || 0) + this.globalAlpha);
+      if (!lastPosition || x !== lastPosition.x || y !== lastPosition.y) cellIndex++;
+      lastPosition = { x, y };
+      cells.set(cellIndex, (cells.get(cellIndex) || 0) + this.globalAlpha);
     }
   };
   const canvas = {
@@ -88,7 +91,7 @@ test('absolute background contrast changes remain stronger over two and five sec
   for (const [width, height] of [[1440, 900], [390, 844], [320, 568]]) {
     dimensions = { width, height };
     const field = new AsciiField(canvas);
-    const frames = [60, 62, 65].map(time => {
+    const frames = [afterFormation, afterFormation + 2, afterFormation + 5].map(time => {
       field.time = time; field.render();
       assert.equal(cells.size, Math.ceil(width / field.cell) * Math.ceil(height / field.row));
       return cells;

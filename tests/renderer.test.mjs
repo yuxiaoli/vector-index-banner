@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import { AsciiField, DEFAULTS, timingAt, glyphStateAt } from '../renderer.js';
+import { AsciiField, DEFAULTS, timingAt, glyphStateAt, particlePoseAt } from '../renderer.js';
 
 let nextId = 1, callbacks = new Map(), dimensions = { width: 1440, height: 900 };
 const calls = { text: 0, fill: 0 }, listeners = {};
-let samples = new Map(), backgroundCells = new Map();
+let samples = new Map(), backgroundCells = new Map(), backgroundIndex = -1, lastBackgroundPosition = null, titleCommandIndex = 0;
 globalThis.requestAnimationFrame = fn => { const id = nextId++; callbacks.set(id, fn); return id; };
 globalThis.cancelAnimationFrame = id => callbacks.delete(id);
 globalThis.window = { devicePixelRatio: 3, addEventListener() {}, removeEventListener() {} };
@@ -15,18 +15,26 @@ globalThis.document = {
 globalThis.ResizeObserver = class { observe() {} disconnect() {} };
 globalThis.IntersectionObserver = class { constructor(fn) { this.fn = fn; } observe() {} disconnect() {} };
 const context = {
-  setTransform() {}, fillRect() { calls.fill++; }, drawImage() {},
+  setTransform() {}, fillRect() { calls.fill++; backgroundIndex = -1; lastBackgroundPosition = null; titleCommandIndex = 0; }, drawImage() {},
   fillText(char, x, y) {
     assert.ok(Number.isFinite(x) && Number.isFinite(y));
     assert.equal(char.length, 1);
     calls.text++;
-    const key = [char, x, y].join('|'), alpha = this.globalAlpha ?? 1;
-    samples.set(key, (samples.get(key) || 0) + alpha);
+    const alpha = this.globalAlpha ?? 1;
+    assert.ok(Number.isFinite(alpha) && alpha >= 0 && alpha <= 1);
     // The background is drawn centered on its grid; wordmark commands use top alignment.
     // Sum both crossfade glyphs so this metric measures flow, not character replacement.
     if (this.textBaseline === 'middle') {
-      const cell = [x, y].join('|');
-      backgroundCells.set(cell, (backgroundCells.get(cell) || 0) + alpha);
+      if (!lastBackgroundPosition || x !== lastBackgroundPosition.x || y !== lastBackgroundPosition.y) backgroundIndex++;
+      lastBackgroundPosition = { x, y };
+      const key = ['background', backgroundIndex, char].join('|');
+      samples.set(key, (samples.get(key) || 0) + alpha);
+      backgroundCells.set(backgroundIndex, (backgroundCells.get(backgroundIndex) || 0) + alpha);
+    } else {
+      // Stable draw order identifies each title body/crossfade/glow layer as its
+      // anchor moves. Movement must not manufacture opacity discontinuities.
+      const key = ['title', titleCommandIndex++, char].join('|');
+      samples.set(key, (samples.get(key) || 0) + alpha);
     }
   }
 };
@@ -64,16 +72,19 @@ for (const [width, height] of [[390, 844], [320, 568], [700, 540], [844, 390], [
   resize(width, height); frame(8);
 }
 
-assert.equal(DEFAULTS.revealSeconds, 42);
-assert.equal(timingAt(1.8).progress, 0);
-assert.equal(timingAt(22.8).progress, .5);
-assert.equal(timingAt(43.8).progress, 1);
+assert.ok(DEFAULTS.revealSeconds >= 90);
+const assemblyStart = DEFAULTS.revealDelay + DEFAULTS.wanderSeconds;
+const formationEnd = assemblyStart + DEFAULTS.revealSeconds;
+const afterFormation = formationEnd + 16.2;
+assert.equal(timingAt(assemblyStart).progress, 0);
+assert.equal(timingAt(assemblyStart + DEFAULTS.revealSeconds / 2).progress, .5);
+assert.equal(timingAt(formationEnd).progress, 1);
 assert.ok(timingAt(8).progress < .15, 'reveal remains deliberately slow at 8 seconds');
 assert.ok(Math.abs((timingAt(301).spin - timingAt(300).spin) - (timingAt(1).spin - timingAt(0).spin)) < 1e-12, 'no startup acceleration');
 
 for (const [width, height] of [[1440, 900], [390, 844], [320, 568]]) {
   resize(width, height);
-  const base = frame(60), two = difference(base.cells, frame(62).cells), five = difference(base.cells, frame(65).cells);
+  const base = frame(afterFormation), two = difference(base.cells, frame(afterFormation + 2).cells), five = difference(base.cells, frame(afterFormation + 5).cells);
   const label = `${width}x${height}`;
   // Broad alpha redistribution must remain perceptible after the wordmark completes.
   // These floors reject the old nearly static field; they do not count title shimmer.
@@ -82,8 +93,18 @@ for (const [width, height] of [[1440, 900], [390, 844], [320, 568]]) {
   assert.ok(five.relativeL1 >= .55, `${label}: sustained background flow over 5s (${five.relativeL1})`);
   assert.ok(five.visibleFraction >= .35, `${label}: at least 35% of cells change alpha by .015 over 5s (${five.visibleFraction})`);
   // Keep the existing .01 no-flicker bound, including early reveal and late glyph cycles.
-  const checkpoints = [0, 8, 20, 42, 100, 560];
-  for (let seconds = 60; seconds <= 65; seconds += .5) checkpoints.push(seconds);
+  const checkpoints = [0, 8, assemblyStart, assemblyStart + DEFAULTS.revealSeconds / 2, formationEnd, 560];
+  for (let frame = 0; frame <= Math.ceil(DEFAULTS.revealDelay * 30); frame++) checkpoints.push(frame / 30);
+  for (const boundary of [assemblyStart, formationEnd]) for (const offset of [-2 / 30, -1 / 30, 0, 1 / 30, 2 / 30]) checkpoints.push(boundary + offset);
+  for (const id of [0, Math.floor(field.title.length / 3), Math.floor(field.title.length * 2 / 3), field.title.length - 1]) {
+    let low = assemblyStart, high = formationEnd;
+    for (let iteration = 0; iteration < 30; iteration++) {
+      const midpoint = (low + high) / 2;
+      if (particlePoseAt(id, field.title[id], { width, height, fontSize: field.titleFont }, midpoint, field.options).settle > 1e-8) high = midpoint; else low = midpoint;
+    }
+    for (const offset of [-1 / 30, 0, 1 / 30]) checkpoints.push(high + offset);
+  }
+  for (let seconds = afterFormation; seconds <= afterFormation + 5; seconds += .5) checkpoints.push(seconds);
   let maximum = 0;
   for (const seconds of checkpoints) {
     const previous = frame(seconds), current = frame(seconds + 1 / 30);
@@ -166,4 +187,4 @@ assert.equal(callbacks.size, 0, 'a page loaded hidden does not schedule animatio
 document.hidden = false; listeners.visibilitychange();
 assert.equal(callbacks.size, 1, 'a page loaded hidden starts when made visible');
 hiddenField.destroy(); assert.equal(callbacks.size, 0);
-console.log('PASS: perceptible background flow after reveal; .01 frame-opacity bound; 42s reveal; continuous glyph crossfades; pause/offscreen/visibility clocks; dissolve replay; reduced-motion stillness; geometry and cleanup.');
+console.log('PASS: perceptible background flow after assembly; .01 identity-based frame-opacity bound; extended assembly; continuous glyph crossfades; pause/offscreen/visibility clocks; dissolve replay; reduced-motion stillness; geometry and cleanup.');
