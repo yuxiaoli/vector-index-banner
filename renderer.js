@@ -4,7 +4,7 @@
  * The field samples an imaginary text grid through an inverse-radius twist.
  */
 export const DEFAULTS = Object.freeze({
- maxDpr: 1.5, fps: 30, revealSeconds: 96, revealDelay: 1.8, wanderSeconds: 18, flowSpeed: 1,
+ maxDpr: 1.5, fps: 30, revealSeconds: 96, revealDelay: 1.8, wanderSeconds: 18, flowSpeed: 1, totalDuration: 45,
  // The ribbon travels across several character cells in a few seconds, while
  // the full field still takes over two minutes to make one gentle turn.
  vortexRadiansPerSecond: .04, arcRadiansPerSecond: .09,
@@ -29,6 +29,7 @@ const clamp=(v,a=0,b=1)=>Math.min(b,Math.max(a,v));
 const smooth=(v)=>{v=clamp(v);return v*v*(3-2*v)};
 const hash=(x,y)=>{let n=Math.imul(x|0,374761393)+Math.imul(y|0,668265263);n=Math.imul(n^(n>>>13),1274126177);return((n^(n>>>16))>>>0)/4294967295};
 const ALPHABET='VECTORINDEX01.:+*=/<>[]{}';
+const SEQUENCE_SECONDS=DEFAULTS.revealDelay+DEFAULTS.wanderSeconds+DEFAULTS.revealSeconds;
 // A single continuous clock. No startup acceleration or frame-count-based motion.
 export function timingAt(seconds, options=DEFAULTS) {
  const t=Math.max(0,seconds), progress=clamp((t-options.revealDelay-options.wanderSeconds)/options.revealSeconds);
@@ -74,12 +75,12 @@ export function fieldPoseAt(i,j,viewport,seconds,options=DEFAULTS){
 }
 export class AsciiField {
  constructor(canvas,options={}) {
-  this.canvas=canvas;this.options={...DEFAULTS,...options};this.context=canvas.getContext('2d',{alpha:false});
+  this.canvas=canvas;this.options={...DEFAULTS,...options,revealDelay:DEFAULTS.revealDelay,wanderSeconds:DEFAULTS.wanderSeconds,revealSeconds:DEFAULTS.revealSeconds};this.context=canvas.getContext('2d',{alpha:false});
   if(!this.context)throw new Error('Canvas 2D unavailable');
   this.time=0;this.paused=false;this.reduced=!!options.reduced;this.visible=!document.hidden;this.destroyed=false;this.raf=0;this.previous=0;this.lastDraw=0;
   this.flowSpeed=clamp(Number(this.options.flowSpeed)||1,.25,2);this.flowOffset=0;
-  this.formationDuration=clamp(Number(options.formationDuration??this.options.revealSeconds)||96,10,180);this.formationOffset=0;
-  this.options.flowSpeed=this.flowSpeed;this.options.revealSeconds=this.formationDuration;
+  this.totalDuration=clamp(Number(options.totalDuration??options.formationDuration??DEFAULTS.totalDuration)||45,30,60);this.sequenceOffset=0;
+  this.options.flowSpeed=this.flowSpeed;this.options.totalDuration=this.totalDuration;
   this.replaySnapshot=null;this.replayElapsed=0;this.pointer={x:0,y:0};this.target={x:0,y:0};this.frameCount=0;
   this.onPointer=e=>{const r=canvas.getBoundingClientRect();this.target={x:((e.clientX-r.left)/r.width-.5)*8,y:((e.clientY-r.top)/r.height-.5)*6}};
   this.onLeave=()=>{this.target={x:0,y:0}};
@@ -107,29 +108,33 @@ export class AsciiField {
  setPaused(value){this.paused=!!value;this.schedule()}
  setReduced(value){this.reduced=!!value;this.replaySnapshot=null;this.render();this.schedule()}
  get flowTime(){return Math.max(0,this.time*this.flowSpeed+this.flowOffset)}
- get formationProgress(){return clamp(Math.max(0,this.time-this.options.revealDelay-this.options.wanderSeconds)/this.formationDuration+this.formationOffset)}
- getFrameState(){return{wallSeconds:this.time,flowSeconds:this.flowTime,formationProgress:this.formationProgress,flowSpeed:this.flowSpeed,formationDuration:this.formationDuration}}
+ get totalProgress(){return clamp(Math.max(0,this.time)/this.totalDuration+this.sequenceOffset)}
+ get sequenceSeconds(){return this.totalProgress*SEQUENCE_SECONDS}
+ // Compatibility names now describe the whole sequence, including its opening.
+ get formationDuration(){return this.totalDuration}
+ get formationProgress(){return timingAt(this.sequenceSeconds,DEFAULTS).progress}
+ getFrameState(){return{wallSeconds:this.time,flowSeconds:this.flowTime/DEFAULTS.totalDuration*SEQUENCE_SECONDS,totalProgress:this.totalProgress,sequenceSeconds:this.sequenceSeconds,formationProgress:this.formationProgress,flowSpeed:this.flowSpeed,totalDuration:this.totalDuration,formationDuration:this.totalDuration}}
  setFlowSpeed(multiplier){
   const value=Number(multiplier);if(!Number.isFinite(value))return this.flowSpeed;
   const phase=this.flowTime;this.flowSpeed=clamp(value,.25,2);this.options.flowSpeed=this.flowSpeed;
   this.flowOffset=phase-this.time*this.flowSpeed;this.render();return this.flowSpeed;
  }
- setFormationDuration(seconds){
-  const value=Number(seconds);if(!Number.isFinite(value))return this.formationDuration;
-  const progress=this.formationProgress,active=Math.max(0,this.time-this.options.revealDelay-this.options.wanderSeconds);
-  this.formationDuration=clamp(value,10,180);this.options.revealSeconds=this.formationDuration;
-  this.formationOffset=progress-active/this.formationDuration;this.render();return this.formationDuration;
+ setTotalDuration(seconds){
+  const value=Number(seconds);if(!Number.isFinite(value))return this.totalDuration;
+  const progress=this.totalProgress;this.totalDuration=clamp(value,30,60);this.options.totalDuration=this.totalDuration;
+  this.sequenceOffset=progress-Math.max(0,this.time)/this.totalDuration;this.render();return this.totalDuration;
  }
+ setFormationDuration(seconds){return this.setTotalDuration(seconds)}
  replay(){
   if(this.reduced)return;
   // Retain the current frame, then dissolve into the new reveal without a cut.
   const snapshot=document.createElement('canvas');snapshot.width=this.canvas.width;snapshot.height=this.canvas.height;
   const context=snapshot.getContext('2d');if(context){context.drawImage(this.canvas,0,0);this.replaySnapshot=snapshot;this.replayElapsed=0}
-  this.time=0;this.flowOffset=0;this.formationOffset=0;this.paused=false;this.previous=0;this.render();this.schedule()
+  this.time=0;this.flowOffset=0;this.sequenceOffset=0;this.paused=false;this.previous=0;this.render();this.schedule()
  }
  render(){
   const c=this.context,w=this.width,h=this.height;if(!w||!h)return;this.frameCount++;
-  const frame=this.getFrameState(),t=this.reduced?DEFAULTS.revealDelay+DEFAULTS.wanderSeconds+DEFAULTS.revealSeconds+8:frame.wallSeconds;
+  const frame=this.getFrameState(),t=this.reduced?SEQUENCE_SECONDS+8:frame.sequenceSeconds;
   const flowSeconds=this.reduced?t:frame.flowSeconds,progress=this.reduced?1:frame.formationProgress;
   const timing={...timingAt(flowSeconds,this.options),progress,reveal:smooth(progress)},{reveal}=timing;
   const cx=this.cx+(this.reduced?0:this.pointer.x),cy=this.cy+(this.reduced?0:this.pointer.y),size=Math.min(w,h);

@@ -4,9 +4,9 @@ const pause=document.querySelector('#pause'),replay=document.querySelector('#rep
 const flowSpeed=document.querySelector('#flow-speed'),flowValue=document.querySelector('#flow-value');
 const formationDuration=document.querySelector('#formation-duration'),durationValue=document.querySelector('#duration-value');
 const preference=matchMedia('(prefers-reduced-motion: reduce)');
-let renderer,userPaused=false,pageHidden=false,motionOverride=null,selectedFlow=1,selectedDuration=96;
+let renderer,userPaused=false,pageHidden=false,motionOverride=null,selectedFlow=1,selectedDuration=45;
 function syncFlow(){flowSpeed.value=String(selectedFlow);flowValue.textContent=`${selectedFlow.toFixed(2)}×`;flowSpeed.setAttribute('aria-valuetext',`${selectedFlow.toFixed(2)} times normal flow speed`)}
-function syncDuration(){formationDuration.value=String(selectedDuration);durationValue.textContent=`${selectedDuration}s`;formationDuration.setAttribute('aria-valuetext',`${selectedDuration} seconds for a full formation`)}
+function syncDuration(){formationDuration.value=String(selectedDuration);durationValue.textContent=`${selectedDuration}s`;formationDuration.setAttribute('aria-valuetext',`${selectedDuration} seconds total, including opening drift`)}
 function sync(message=''){
  scene.classList.toggle('paused',userPaused);scene.classList.toggle('reduced',renderer.reduced);
  pause.querySelector('span').textContent=userPaused?'Play':'Pause';pause.setAttribute('aria-label',userPaused?'Play animation':'Pause animation');
@@ -23,7 +23,7 @@ function sync(message=''){
 try{
  renderer=new AsciiField(canvas,{reduced:preference.matches});scene.classList.add('canvas-ready');sync();syncFlow();syncDuration();
  flowSpeed.addEventListener('input',()=>{const value=Number(flowSpeed.value);if(Number.isFinite(value))selectedFlow=Math.max(.25,Math.min(2,value));renderer.setFlowSpeed(selectedFlow);syncFlow()});
- formationDuration.addEventListener('input',()=>{const value=Number(formationDuration.value);if(Number.isFinite(value))selectedDuration=Math.max(10,Math.min(180,value));renderer.setFormationDuration(selectedDuration);syncDuration()});
+ formationDuration.addEventListener('input',()=>{const value=Number(formationDuration.value);if(Number.isFinite(value))selectedDuration=Math.max(30,Math.min(60,value));renderer.setFormationDuration(selectedDuration);syncDuration()});
  pause.addEventListener('click',()=>{userPaused=!userPaused;renderer.setPaused(userPaused||pageHidden);sync()});
  replay.addEventListener('click',()=>{userPaused=false;renderer.replay();if(pageHidden)renderer.setPaused(true);sync('Replaying the gradual reveal. Flow continues.')});
  motion.addEventListener('click',()=>{motionOverride=!renderer.reduced;renderer.setReduced(motionOverride);if(!motionOverride){userPaused=false;renderer.setPaused(pageHidden)}sync()});

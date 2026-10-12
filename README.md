@@ -12,7 +12,7 @@ The restoration regression compares rendered frames with commit `192cd7374e79188
 
 ## Reuse
 
-Import `AsciiField` from `renderer.js`, instantiate it with a canvas, and call `destroy()` on unmount. Methods: `setPaused(boolean)`, `setReduced(boolean)`, `setFlowSpeed(multiplier)`, `setFormationDuration(seconds)`, and `replay()`. Options are exported as `DEFAULTS`; all timing uses elapsed seconds, independently of frame rate. CSS and the semantic HTML overlay are separate from the renderer.
+Import `AsciiField` from `renderer.js`, instantiate it with a canvas, and call `destroy()` on unmount. Methods: `setPaused(boolean)`, `setReduced(boolean)`, `setFlowSpeed(multiplier)`, `setTotalDuration(seconds)`, and `replay()`. `setFormationDuration(seconds)` remains an alias for setting total time. Options are exported as `DEFAULTS`; all timing uses elapsed seconds, independently of frame rate. CSS and the semantic HTML overlay are separate from the renderer.
 
 ## Accessibility and performance
 
@@ -24,11 +24,11 @@ Requested palette: exact `#11FF00` on pure `#000000`.
 
 ## Motion and formation
 
-- The default 1.8-second lead-in and 18-second initial flow precede 96 seconds of formation. The default complete sequence lasts 115.8 seconds.
+- The complete formation defaults to 45 seconds, including the opening drift. The original phase proportions are preserved: opening takes 19.8/115.8 of the total and assembly takes 96/115.8. At the default setting, opening lasts about 7.69 seconds and assembly about 37.31 seconds.
 - Local movement and text assembly use independent clocks. Overlapping smooth curves and stable per-particle seeds create irregular wandering without frame-to-frame random jitter. Each character stays within the viewport while its spread gradually settles into the final letters.
-- At the default 1× flow speed, the background vortex advances at 0.04 radians per second, about one turn every 2.6 minutes. The ribbons move visibly across the character grid within a few seconds; the arc phase advances at 0.09 radians per second.
+- The background retains the original inverse-radius vortex and moving ribbons. Ambient movement uses a fixed 45-second calibration of the original 115.8-second clock, independently of the selected total formation time.
 - The wordmark resolves into precise, stable letters. Background characters and ribbons keep moving after formation; brightness and glyph crossfades remain continuous.
-- At 1× flow speed, background glyphs use a staggered 56-second cycle with 12-second crossfades. Changing flow speed also changes future curve, vortex, arc, shimmer, and glyph-cycle movement through the same integrated flow clock.
+- Background glyphs retain staggered cycles and smooth crossfades. Changing flow speed changes future curve, vortex, arc, shimmer, and glyph-cycle movement through the same integrated flow clock.
 - Pointer motion is subtle and eases over 2.4 seconds. Replay dissolves over 5.5 seconds and restarts the same sequence.
 - System reduced-motion starts with a clearly identified still composition and complete wordmark. Enabling motion starts the flow for this page; pause and replay remain separate controls.
 
@@ -36,7 +36,7 @@ Requested palette: exact `#11FF00` on pure `#000000`.
 
 Flow speed ranges from 0.25× to 2×. Changing it preserves the current flow phase, particle positions, and formation progress, then changes future movement speed.
 
-Formation duration ranges from 10 to 180 seconds and defaults to 96 seconds. It describes the formation phase; the initial 19.8 seconds are separate. Changing duration preserves current progress and changes the remaining pace. It does not restart the animation. Replay begins a full cycle with the selected speed and duration.
+Total formation time ranges from 30 to 60 seconds and defaults to 45 seconds. The selected total covers both opening drift and assembly. Changing it preserves the current sequence phase, particle positions, and progress, then changes the remaining pace. Replay begins a full cycle with the selected speed and total time.
 
 Both settings remain adjustable while paused or in reduced motion, without starting movement. Native labelled range inputs support keyboard and touch interaction, with visible values and explanatory help.
 

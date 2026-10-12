@@ -25,7 +25,7 @@ function createElement(){
 function mount({reduced=false,rendererUnavailable=false}={}){
  const elements={};
  for(const selector of ['#scene','#field','#pause','#replay','#motion','#status','.controls','#flow-speed','#flow-value','#formation-duration','#duration-value'])elements[selector]=createElement();
- elements['#flow-speed'].value='1';elements['#formation-duration'].value='96';
+ elements['#flow-speed'].value='1';elements['#formation-duration'].value='45';
  const media={
   matches:reduced,listeners:{},
   addEventListener(name,handler){this.listeners[name]=handler},
@@ -37,7 +37,7 @@ function mount({reduced=false,rendererUnavailable=false}={}){
   constructor(canvas,options){
    if(rendererUnavailable)throw new Error('Canvas 2D unavailable');
    assert.equal(canvas,elements['#field']);
-   this.paused=false;this.reduced=options.reduced;this.replays=0;this.flowSpeed=1;this.formationDuration=96;this.flowUpdates=[];this.durationUpdates=[];field=this;
+   this.paused=false;this.reduced=options.reduced;this.replays=0;this.flowSpeed=1;this.formationDuration=45;this.flowUpdates=[];this.durationUpdates=[];field=this;
   }
   setPaused(value){this.paused=value}
   setReduced(value){this.reduced=value}
@@ -113,18 +113,18 @@ assert.equal(automatic.field.reduced,true,'explicit still choice also survives d
 const adjustable=mount();
 adjustable.elements['#flow-speed'].input('1.75');
 assert.equal(adjustable.field.flowSpeed,1.75,'flow input configures renderer speed');
-assert.equal(adjustable.field.formationDuration,96,'flow adjustment leaves formation duration alone');
+assert.equal(adjustable.field.formationDuration,45,'flow adjustment leaves the default total time alone');
 assert.equal(adjustable.field.replays,0,'flow adjustment does not restart assembly');
 assert.equal(adjustable.field.paused,false,'flow adjustment keeps playback state');
 assert.equal(adjustable.elements['#flow-value'].textContent,'1.75×','flow output displays its current multiplier');
 assert.equal(adjustable.elements['#flow-speed'].attributes['aria-valuetext'],'1.75 times normal flow speed');
 
-adjustable.elements['#formation-duration'].input('160');
-assert.equal(adjustable.field.formationDuration,160,'duration input configures future formation pace');
+adjustable.elements['#formation-duration'].input('60');
+assert.equal(adjustable.field.formationDuration,60,'duration input configures the total sequence pace');
 assert.equal(adjustable.field.flowSpeed,1.75,'duration adjustment leaves flow speed alone');
 assert.equal(adjustable.field.replays,0,'duration adjustment does not restart assembly');
-assert.equal(adjustable.elements['#duration-value'].textContent,'160s','duration output displays seconds');
-assert.equal(adjustable.elements['#formation-duration'].attributes['aria-valuetext'],'160 seconds for a full formation');
+assert.equal(adjustable.elements['#duration-value'].textContent,'60s','duration output displays total seconds');
+assert.equal(adjustable.elements['#formation-duration'].attributes['aria-valuetext'],'60 seconds total, including opening drift');
 
 const bounded=mount();
 bounded.elements['#flow-speed'].input('12');
@@ -136,17 +136,17 @@ bounded.elements['#flow-speed'].input('not-a-number');
 assert.equal(bounded.field.flowSpeed,.25,'invalid input preserves the last valid speed');
 
 bounded.elements['#formation-duration'].input('300');
-assert.equal(bounded.field.formationDuration,180,'duration cannot exceed its declared maximum');
-assert.equal(bounded.elements['#formation-duration'].value,'180','duration input returns to its bounded setting');
+assert.equal(bounded.field.formationDuration,60,'total duration cannot exceed its declared maximum');
+assert.equal(bounded.elements['#formation-duration'].value,'60','duration input returns to its bounded setting');
 bounded.elements['#formation-duration'].input('0');
-assert.equal(bounded.field.formationDuration,10,'duration cannot fall below its declared minimum');
+assert.equal(bounded.field.formationDuration,30,'total duration cannot fall below its declared minimum');
 bounded.elements['#formation-duration'].input('not-a-number');
-assert.equal(bounded.field.formationDuration,10,'invalid input preserves the last valid duration');
+assert.equal(bounded.field.formationDuration,30,'invalid input preserves the last valid duration');
 
 const pausedSettings=mount();
 pausedSettings.elements['#pause'].click();
 pausedSettings.elements['#flow-speed'].input('.5');
-pausedSettings.elements['#formation-duration'].input('120');
+pausedSettings.elements['#formation-duration'].input('60');
 assert.equal(pausedSettings.field.paused,true,'settings changes preserve a deliberate pause');
 assert.equal(pausedSettings.elements['#scene'].classList.contains('paused'),true);
 assert.equal(pausedSettings.elements['#pause'].children.span.textContent,'Play');
@@ -155,9 +155,9 @@ assert.equal(pausedSettings.field.replays,0,'paused settings changes cannot rest
 pausedSettings.elements['#replay'].click();
 assert.equal(pausedSettings.field.replays,1);
 assert.equal(pausedSettings.field.flowSpeed,.5,'replay retains the selected flow speed');
-assert.equal(pausedSettings.field.formationDuration,120,'replay retains the selected duration');
+assert.equal(pausedSettings.field.formationDuration,60,'replay retains the selected total duration');
 assert.equal(pausedSettings.elements['#flow-value'].textContent,'0.50×');
-assert.equal(pausedSettings.elements['#duration-value'].textContent,'120s');
+assert.equal(pausedSettings.elements['#duration-value'].textContent,'60s');
 
 const stillSettings=mount({reduced:true});
 assert.equal(stillSettings.elements['#flow-speed'].disabled,false,'settings remain available in reduced motion');
@@ -189,7 +189,7 @@ assert.equal((html.match(/id="status"/g)??[]).length,1);
 
 for(const [id,label,value,min,max,step,output] of [
  ['flow-speed','Flow speed','1','0.25','2','0.05','flow-value'],
- ['formation-duration','Formation duration','96','10','180','1','duration-value']
+ ['formation-duration','Total formation time','45','30','60','1','duration-value']
 ]){
  const tag=html.match(new RegExp(`<input\\b[^>]*\\bid="${id}"[^>]*>`))?.[0];
  assert.ok(tag,`${label} exists in the shipped page`);
@@ -204,6 +204,6 @@ for(const [id,label,value,min,max,step,output] of [
  assert.ok(html.indexOf(`id="${id}"`)>html.indexOf('<div class="controls"'),`${label} shares the fallback-hidden controls group`);
  assert.ok(html.indexOf(`id="${id}"`)<html.indexOf('<div class="control-buttons"'),`${label} belongs inside the same controls group`);
 }
-assert.match(html,/id="timing-help">Duration changes remaining pace\. Replay starts a full cycle\./,'visible help explains progress-preserving duration changes and replay');
+assert.match(html,/id="timing-help">Includes opening drift\. Changes remaining pace; Replay starts a full cycle\./,'visible help explains that the total includes opening drift and preserves progress');
 
 console.log('PASS: labelled native speed/duration controls; independent bounded updates; visible values and duration explanation; paused/reduced settings; replay persistence; reduced-motion preference/override; pause/replay; BFCache preservation; readable fallback.');

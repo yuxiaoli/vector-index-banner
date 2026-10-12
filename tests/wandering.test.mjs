@@ -3,8 +3,9 @@ import test from 'node:test';
 import * as renderer from '../renderer.js';
 
 const { DEFAULTS, timingAt, AsciiField } = renderer;
+const wallAtCanonical = seconds => seconds * DEFAULTS.totalDuration / (DEFAULTS.revealDelay + DEFAULTS.wanderSeconds + DEFAULTS.revealSeconds);
 
-test('assembly waits for an initial wandering phase and lasts at least ninety seconds without slowing the flow clock', () => {
+test('the canonical sequence retains its historical opening and assembly proportions without slowing the flow clock', () => {
   for (const time of [4, 10, 18]) {
     assert.equal(timingAt(time).progress, 0, `letters have not started assembling at ${time}s`);
   }
@@ -45,7 +46,7 @@ test('visible title particles wander on curved paths before any letters assemble
   for (const [width, height] of [[1440, 900], [390, 844], [320, 568]]) {
     dimensions = { width, height }; const field = new AsciiField(canvas);
     const capture = time => {
-      field.time = time; field.render();
+      field.time = wallAtCanonical(time); field.render();
       let cursor = 0;
       const particles = field.title.map(particle => {
         const group = draws.slice(cursor, cursor + 2 + (particle.n > .92 ? 1 : 0));
@@ -106,7 +107,7 @@ test('background glyph anchors follow continuous curved local paths before and a
   const observations = [];
   for (const [width, height] of [[1440, 900], [390, 844], [320, 568]]) {
     dimensions = { width, height }; const field = new AsciiField(canvas);
-    const capture = time => { field.time = time; field.render(); return points; };
+    const capture = time => { field.time = wallAtCanonical(time); field.render(); return points; };
     const [a, b, c] = [10, 12, 14].map(capture);
     const cols = Math.ceil(width / field.cell), rows = Math.ceil(height / field.row);
     assert.equal(a.length, cols * rows, 'one stable anchor per background cell');
@@ -166,7 +167,7 @@ test('local path physics is independent of letter targets and assembly duration'
   }
 });
 
-test('physical paths have bounded velocity and acceleration through wandering and final settlement', () => {
+test('canonical physical paths have bounded velocity and acceleration through wandering and final settlement', () => {
   assert.equal(typeof renderer.particlePoseAt, 'function');
   assert.equal(typeof renderer.fieldPoseAt, 'function');
   const dt = 1 / 30, end = DEFAULTS.revealDelay + DEFAULTS.wanderSeconds + DEFAULTS.revealSeconds;
@@ -205,7 +206,7 @@ test('physical paths have bounded velocity and acceleration through wandering an
     }
     observations.push({ width, height, titleVelocity, titleAcceleration, fieldVelocity, fieldAcceleration });
   }
-  console.log('Physical path bounds at 30fps: ' + JSON.stringify(observations));
+  console.log('Canonical physical path bounds at 30fps: ' + JSON.stringify(observations));
 });
 
 test('replay restores genuine wandering and reduced motion shows the exact completed wordmark', () => {
@@ -227,7 +228,7 @@ test('replay restores genuine wandering and reduced motion shows the exact compl
   const end = DEFAULTS.revealDelay + (DEFAULTS.wanderSeconds || 0) + DEFAULTS.revealSeconds;
   for (const [width, height] of [[1440, 900], [390, 844], [320, 568]]) {
     dimensions = { width, height }; const field = new AsciiField(canvas);
-    const capture = time => { field.time = time; field.render(); return draws; };
+    const capture = time => { field.time = wallAtCanonical(time); field.render(); return draws; };
     const positions = frame => {
       let cursor = 0;
       return field.title.map(particle => {

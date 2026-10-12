@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { AsciiField, DEFAULTS, timingAt, glyphStateAt, particlePoseAt } from '../renderer.js';
+const canonicalDuration = DEFAULTS.revealDelay + DEFAULTS.wanderSeconds + DEFAULTS.revealSeconds;
+const wallAtCanonical = seconds => seconds * DEFAULTS.totalDuration / canonicalDuration;
 
 let nextId = 1, callbacks = new Map(), dimensions = { width: 1440, height: 900 };
 const calls = { text: 0, fill: 0 }, listeners = {};
@@ -47,7 +49,7 @@ const canvas = {
 const field = new AsciiField(canvas);
 function frame(seconds) {
   samples = new Map(); backgroundCells = new Map(); backgroundPositions = new Map();
-  field.time = seconds; field.render();
+  field.time = wallAtCanonical(seconds); field.render();
   const spatialInk = new Map();
   for (const [id, alpha] of backgroundCells) {
     const point = backgroundPositions.get(id), key = [Math.floor(point.x / field.cell), Math.floor(point.y / field.row)].join('|');
@@ -100,7 +102,7 @@ for (const [width, height] of [[1440, 900], [390, 844], [320, 568]]) {
   assert.ok(two.visibleFraction >= .25, `${label}: at least 25% of cells change alpha by .015 over 2s (${two.visibleFraction})`);
   assert.ok(five.relativeL1 >= .55, `${label}: sustained background flow over 5s (${five.relativeL1})`);
   assert.ok(five.visibleFraction >= .35, `${label}: at least 35% of cells change alpha by .015 over 5s (${five.visibleFraction})`);
-  // Keep the existing .01 no-flicker bound, including early reveal and late glyph cycles.
+  // Keep the existing .01 canonical-phase bound, including early reveal and late glyph cycles.
   const checkpoints = [0, 8, assemblyStart, assemblyStart + DEFAULTS.revealSeconds / 2, formationEnd, 560];
   for (let frame = 0; frame <= Math.ceil(DEFAULTS.revealDelay * 30); frame++) checkpoints.push(frame / 30);
   for (const boundary of [assemblyStart, formationEnd]) for (const offset of [-2 / 30, -1 / 30, 0, 1 / 30, 2 / 30]) checkpoints.push(boundary + offset);
@@ -118,7 +120,7 @@ for (const [width, height] of [[1440, 900], [390, 844], [320, 568]]) {
     const previous = frame(seconds), current = frame(seconds + 1 / 30);
     const delta = difference(previous.glyphs, current.glyphs).maximum;
     maximum = Math.max(maximum, delta);
-    assert.ok(delta < .01, `${label}: no frame opacity jumps at ${seconds}s (${delta})`);
+    assert.ok(delta < .01, `${label}: no canonical-phase opacity jumps at ${seconds}s (${delta})`);
   }
   console.log(`Flow ${label}: 2s L1=${two.relativeL1.toFixed(3)}, changed=${two.visibleFraction.toFixed(3)}; 5s L1=${five.relativeL1.toFixed(3)}, changed=${five.visibleFraction.toFixed(3)}; max frame alpha=${maximum.toFixed(5)}`);
 }
@@ -195,4 +197,4 @@ assert.equal(callbacks.size, 0, 'a page loaded hidden does not schedule animatio
 document.hidden = false; listeners.visibilitychange();
 assert.equal(callbacks.size, 1, 'a page loaded hidden starts when made visible');
 hiddenField.destroy(); assert.equal(callbacks.size, 0);
-console.log('PASS: perceptible background flow after assembly; .01 identity-based frame-opacity bound; extended assembly; continuous glyph crossfades; pause/offscreen/visibility clocks; dissolve replay; reduced-motion stillness; geometry and cleanup.');
+console.log('PASS: perceptible background flow after assembly; .01 identity-based canonical-phase opacity bound; historical stage proportions; continuous glyph crossfades; pause/offscreen/visibility clocks; dissolve replay; reduced-motion stillness; geometry and cleanup.');

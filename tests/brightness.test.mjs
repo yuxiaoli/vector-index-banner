@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { AsciiField, DEFAULTS } from '../renderer.js';
 const afterFormation = DEFAULTS.revealDelay + DEFAULTS.wanderSeconds + DEFAULTS.revealSeconds + 16.2;
+const wallAtCanonical = seconds => seconds * DEFAULTS.totalDuration / (DEFAULTS.revealDelay + DEFAULTS.wanderSeconds + DEFAULTS.revealSeconds);
 
 test('fully revealed moving background uses clearly visible individual glyph opacity on desktop and mobile', () => {
   let dimensions = { width: 1440, height: 900 }, nextId = 1, cells = new Map(), cellIndex = -1, lastPosition = null;
@@ -39,7 +40,7 @@ test('fully revealed moving background uses clearly visible individual glyph opa
     dimensions = { width, height };
     const field = new AsciiField(canvas);
     for (const time of [afterFormation, afterFormation + 2, afterFormation + 5]) {
-      field.time = time; field.render();
+      field.time = wallAtCanonical(time); field.render();
       assert.equal(cells.size, Math.ceil(width / field.cell) * Math.ceil(height / field.row), 'every background cell is measured without wordmark contamination');
       const alphas = [...cells.values()].sort((a, b) => a - b);
       observations.push({
@@ -93,7 +94,7 @@ test('absolute screen-space background ink transport stays visible over two and 
     dimensions = { width, height };
     const field = new AsciiField(canvas);
     const frames = [afterFormation, afterFormation + 2, afterFormation + 5].map(time => {
-      field.time = time; field.render();
+      field.time = wallAtCanonical(time); field.render();
       assert.equal(cells.size, Math.ceil(width / field.cell) * Math.ceil(height / field.row));
       return cells;
     });
