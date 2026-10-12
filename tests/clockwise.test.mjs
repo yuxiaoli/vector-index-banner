@@ -84,7 +84,9 @@ test('the flowing title progressively reveals a readable stationary wordmark ins
   const observations = [];
   for (const [width, height] of [[1440, 900], [390, 844], [320, 568]]) {
     dimensions = { width, height }; const field = new renderer.AsciiField(canvas);
-    const frames = [10, 40, 70, 100, end].map(time => {
+    // Genuine disorder precedes geometry organization; the stationary handoff
+    // starts later, after the cloud has acquired substantial target structure.
+    const frames = [10, 40, 60, 85, 105, end].map(time => {
       field.time = time; field.render();
       const alphas = field.title.map(point => anchors.get(`${point.x}|${point.y}`) || 0);
       return { time, meanTargetOpacity: alphas.reduce((sum, alpha) => sum + alpha, 0) / alphas.length, readableTargetFraction: alphas.filter(alpha => alpha >= .8).length / alphas.length };
@@ -93,9 +95,9 @@ test('the flowing title progressively reveals a readable stationary wordmark ins
   }
   console.log('Progressive stationary wordmark: ' + JSON.stringify(observations));
   for (const observation of observations) {
-    assert.ok(observation.frames[0].meanTargetOpacity <= .01, 'the complete fixed wordmark is not visible before assembly');
-    for (let index = 1; index < observation.frames.length; index++) assert.ok(observation.frames[index].meanTargetOpacity > observation.frames[index - 1].meanTargetOpacity, 'stationary letter contrast increases during assembly');
-    assert.ok(observation.frames[2].meanTargetOpacity >= .2, 'clear stationary letter strokes emerge during the middle phase');
+    assert.ok(observation.frames.slice(0, 2).every(frame => frame.meanTargetOpacity <= .01), 'the complete fixed wordmark remains hidden while the dispersed cloud starts organizing');
+    for (let index = 2; index < observation.frames.length; index++) assert.ok(observation.frames[index].meanTargetOpacity > observation.frames[index - 1].meanTargetOpacity, 'stationary letter contrast increases after the geometry starts organizing');
+    assert.ok(observation.frames[3].meanTargetOpacity >= .2, 'clear stationary letter strokes emerge during the organized handoff');
     assert.ok(observation.frames.at(-1).readableTargetFraction >= .99, 'the final wordmark has exact readable stationary targets');
   }
 });
@@ -103,6 +105,10 @@ test('the flowing title progressively reveals a readable stationary wordmark ins
 test('the shared clockwise clock stays forward and neighboring streamlines stay coherent throughout assembly', () => {
   const dt = 1 / 30, end = renderer.DEFAULTS.revealDelay + renderer.DEFAULTS.wanderSeconds + renderer.DEFAULTS.revealSeconds;
   const omega = renderer.DEFAULTS.clockwiseRadiansPerSecond ?? .1;
+  // Polar organization can add one positive correction of at most a full turn.
+  // The derivative of smooth(progress) is at most 1.5 / assembly duration.
+  // This additional attraction is separate from the shared flow's turbulence.
+  const attractionRateBound = 2 * Math.PI * 1.5 / renderer.DEFAULTS.revealSeconds;
   const observations = [];
   for (const [width, height] of [[1440, 900], [390, 844], [320, 568]]) {
     const cx = width / 2, cy = height * (width <= 700 ? .44 : .46), ax = width / 2, ay = Math.min(cy, height - cy);
@@ -123,7 +129,7 @@ test('the shared clockwise clock stays forward and neighboring streamlines stay 
           const a = pose(time), b = pose(time + dt), rate = angularRate(a, b);
           assert.ok(Number.isFinite(rate));
           assert.ok(rate >= omega * .75, `no layer stalls, reverses, or unwinds at a handoff boundary (angular rate ${rate})`);
-          assert.ok(rate <= omega * 1.3, 'turbulence does not create independent fast angular paths');
+          assert.ok(rate <= omega * 1.3 + attractionRateBound, 'angular pace stays bounded by the common flow plus one gradual clockwise organization correction');
           minimumRate = Math.min(minimumRate, rate); maximumRate = Math.max(maximumRate, rate);
         }
       }
@@ -134,9 +140,13 @@ test('the shared clockwise clock stays forward and neighboring streamlines stay 
         const angle = sample * Math.PI * 2 / 32;
         const source = { x: cx + ax * .8 * Math.cos(angle), y: cy + ay * .8 * Math.sin(angle) };
         const i = Math.floor(source.x / viewport.cell), j = Math.floor(source.y / viewport.row);
-        const a = renderer.fieldPoseAt(i, j, viewport, time), b = renderer.fieldPoseAt(i, j, viewport, time + dt);
+        // Compare physically neighboring source points in the shared kernel.
+        // Dispersed seed identities are not spatial neighbors before assembly.
+        const a = renderer.flowPoseAt(source, viewport, time), b = renderer.flowPoseAt(source, viewport, time + dt);
         rates.push(angularRate(a, b));
-        const c = renderer.fieldPoseAt(i + 1, j, viewport, time), d = renderer.fieldPoseAt(i + 1, j, viewport, time + dt);
+        assert.ok(angularRate(a, b) <= omega * 1.3, 'shared-kernel turbulence retains its original slow pace limit');
+        const neighbor = { x: source.x + viewport.cell, y: source.y };
+        const c = renderer.flowPoseAt(neighbor, viewport, time), d = renderer.flowPoseAt(neighbor, viewport, time + dt);
         const u = normalize({ x: cx + b.x - a.x, y: cy + b.y - a.y }), v = normalize({ x: cx + d.x - c.x, y: cy + d.y - c.y });
         const agreement = (u.x * v.x + u.y * v.y) / (Math.hypot(u.x, u.y) * Math.hypot(v.x, v.y));
         if (agreement >= .9) agrees++;

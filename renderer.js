@@ -4,12 +4,12 @@
  * One coherent clockwise field carries glyphs through a gradual text reveal.
  */
 export const DEFAULTS = Object.freeze({
- maxDpr: 1.5, fps: 30, revealSeconds: 96, revealDelay: 1.8, wanderSeconds: 18,
+ maxDpr: 1.5, fps: 30, revealSeconds: 96, revealDelay: 1.8, wanderSeconds: 18, flowSpeed: 1,
  // Legacy texture clocks remain available from timingAt; shared motion below
  // makes one clockwise turn in about 63 seconds, independent of assembly.
  vortexRadiansPerSecond: .04, arcRadiansPerSecond: .09,
  clockwiseRadiansPerSecond: .1, flowTurbulenceRadians: .1,
- flowDeformationRadians: .6, flowSpiralRadians: 2.4,
+ flowRadialTurbulence: .02,
  glyphCycleSeconds: 56, glyphCrossfadeSeconds: 12,
  shimmerRadiansPerSecond: .028, pointerEaseSeconds: 2.4,
  replayFadeSeconds: 5.5, background: '#000000'
@@ -45,28 +45,58 @@ export function flowPoseAt(point,viewport,seconds,options=DEFAULTS){
  const w=viewport.width,h=viewport.height,cx=viewport.centerX??w/2,cy=viewport.centerY??h*(w<=700?.44:.46);
  const margin=Math.max(12,Math.min(w,h)*.025),ax=Math.max(0,Math.min(cx,w-cx)-margin),ay=Math.max(0,Math.min(cy,h-cy)-margin);
  if(!ax||!ay)return{x:cx,y:cy};
- const nx=(point.x-cx)/ax,ny=(point.y-cy)/ay,r=Math.hypot(nx,ny),a=Math.atan2(ny,nx),radius=.98*Math.tanh(r/.98);
- const t=Math.max(0,seconds),omega=Math.max(0,options.clockwiseRadiansPerSecond),clarity=timingAt(t,options).reveal;
- // Bound annealing and turbulence to less than 15% of the common angular rate.
- const deformation=Math.min(options.flowDeformationRadians,.095*omega*options.revealSeconds/1.5);
- const turbulence=clamp(options.flowTurbulenceRadians,0,.1);
- const angle=a+options.flowSpiralRadians*radius+omega*t
-  +deformation*(1-clarity)*Math.sin(a*3+radius*4)
-  +turbulence*Math.sin(radius*6+omega*t*.5);
- const distance=radius*(1-.3*(1-clarity)*(1+Math.sin(a*2+radius*5))/2);
+ const nx=(point.x-cx)/ax,ny=(point.y-cy)/ay,r=Math.hypot(nx,ny),a=Math.atan2(ny,nx),radius=r<=.94?r:.94+.01*Math.tanh((r-.94)/.01);
+ const t=Math.max(0,viewport.flowSeconds??seconds*(options.flowSpeed??1)),phase=t*Math.max(0,options.clockwiseRadiansPerSecond);
+ // Angular variation is common to the whole field; local variation is radial.
+ const angle=a+phase+clamp(options.flowTurbulenceRadians,0,.1)*Math.sin(phase*.5);
+ const distance=radius*(1+clamp(options.flowRadialTurbulence,0,.02)*Math.sin(phase*.7+a*2));
  return{x:cx+ax*distance*Math.cos(angle),y:cy+ay*distance*Math.sin(angle)};
 }
+export function seedOriginAt(id,viewport){
+ const w=viewport.width,h=viewport.height,cx=viewport.centerX??w/2,cy=viewport.centerY??h*(w<=700?.44:.46);
+ const margin=Math.max(12,Math.min(w,h)*.025),ax=Math.max(0,Math.min(cx,w-cx)-margin),ay=Math.max(0,Math.min(cy,h-cy)-margin);
+ const radius=.94*Math.sqrt(hash(id+319,613)),angle=Math.PI*2*hash(id-127,91);
+ return{x:cx+ax*radius*Math.cos(angle),y:cy+ay*radius*Math.sin(angle)};
+}
+export function organizedSourceAt(id,target,viewport,progress){
+ const seed=seedOriginAt(id,viewport),p=clamp(progress);
+ if(!p)return seed;if(p===1)return target;
+ const w=viewport.width,h=viewport.height,cx=viewport.centerX??w/2,cy=viewport.centerY??h*(w<=700?.44:.46);
+ const margin=Math.max(12,Math.min(w,h)*.025),ax=Math.max(1,Math.min(cx,w-cx)-margin),ay=Math.max(1,Math.min(cy,h-cy)-margin);
+ const sx=(seed.x-cx)/ax,sy=(seed.y-cy)/ay,tx=(target.x-cx)/ax,ty=(target.y-cy)/ay;
+ const start=Math.atan2(sy,sx),end=Math.atan2(ty,tx),turn=Math.PI*2,delta=((end-start)%turn+turn)%turn,organization=smooth(p);
+ // A fixed positive correction organizes along clockwise arcs, never flights.
+ const angle=start+delta*organization,radius=Math.hypot(sx,sy)+(Math.hypot(tx,ty)-Math.hypot(sx,sy))*organization;
+ return{x:cx+ax*radius*Math.cos(angle),y:cy+ay*radius*Math.sin(angle)};
+}
 export function particlePoseAt(id,target,viewport,seconds,options=DEFAULTS){
- return{...flowPoseAt(target,viewport,seconds,options),settle:timingAt(seconds,options).reveal};
+ const progress=viewport.formationProgress??timingAt(seconds,options).progress;
+ return{...flowPoseAt(organizedSourceAt(id,target,viewport,progress),viewport,seconds,options),settle:smooth((progress-.35)/.65),organization:smooth(progress)};
+}
+export function fieldTargetAt(i,j,viewport){
+ const w=viewport.width,h=viewport.height,cx=viewport.centerX??w/2,cy=viewport.centerY??h*(w<=700?.44:.46);
+ const margin=Math.max(12,Math.min(w,h)*.025),ax=Math.max(0,Math.min(cx,w-cx)-margin),ay=Math.max(0,Math.min(cy,h-cy)-margin);
+ const cols=Math.max(1,Math.ceil(w/viewport.cell)),rows=Math.max(1,Math.ceil(h/viewport.row));
+ const u=2*(i+.5)/cols-1,v=2*(j+.5)/rows-1;
+ if(!u&&!v)return{x:cx,y:cy};
+ // Area-preserving square-to-disk mapping keeps corners out of a thin rim.
+ const horizontal=Math.abs(u)>=Math.abs(v),radius=horizontal?u:v;
+ const angle=horizontal?Math.PI/4*(v/u):Math.PI/2-Math.PI/4*(u/v);
+ return{x:cx+ax*.92*radius*Math.cos(angle),y:cy+ay*.92*radius*Math.sin(angle)};
 }
 export function fieldPoseAt(i,j,viewport,seconds,options=DEFAULTS){
- return flowPoseAt({x:(i+.5)*viewport.cell,y:(j+.5)*viewport.row},viewport,seconds,options);
+ const progress=viewport.formationProgress??timingAt(seconds,options).progress;
+ const source=organizedSourceAt(1000000+i+j*65536,fieldTargetAt(i,j,viewport),viewport,progress);
+ return flowPoseAt(source,viewport,seconds,options);
 }
 export class AsciiField {
  constructor(canvas,options={}) {
   this.canvas=canvas;this.options={...DEFAULTS,...options};this.context=canvas.getContext('2d',{alpha:false});
   if(!this.context)throw new Error('Canvas 2D unavailable');
   this.time=0;this.paused=false;this.reduced=!!options.reduced;this.visible=!document.hidden;this.destroyed=false;this.raf=0;this.previous=0;this.lastDraw=0;
+  this.flowSpeed=clamp(Number(this.options.flowSpeed)||1,.25,2);this.flowOffset=0;
+  this.formationDuration=clamp(Number(options.formationDuration??this.options.revealSeconds)||96,45,180);this.formationOffset=0;
+  this.options.flowSpeed=this.flowSpeed;this.options.revealSeconds=this.formationDuration;
   this.replaySnapshot=null;this.replayElapsed=0;this.pointer={x:0,y:0};this.target={x:0,y:0};this.frameCount=0;
   this.onPointer=e=>{const r=canvas.getBoundingClientRect();this.target={x:((e.clientX-r.left)/r.width-.5)*8,y:((e.clientY-r.top)/r.height-.5)*6}};
   this.onLeave=()=>{this.target={x:0,y:0}};
@@ -93,21 +123,35 @@ export class AsciiField {
  }
  setPaused(value){this.paused=!!value;this.schedule()}
  setReduced(value){this.reduced=!!value;this.replaySnapshot=null;this.render();this.schedule()}
+ get flowTime(){return Math.max(0,this.time*this.flowSpeed+this.flowOffset)}
+ get formationProgress(){return clamp(Math.max(0,this.time-this.options.revealDelay-this.options.wanderSeconds)/this.formationDuration+this.formationOffset)}
+ getFrameState(){return{wallSeconds:this.time,flowSeconds:this.flowTime,formationProgress:this.formationProgress,flowSpeed:this.flowSpeed,formationDuration:this.formationDuration}}
+ setFlowSpeed(multiplier){
+  const value=Number(multiplier);if(!Number.isFinite(value))return this.flowSpeed;
+  const phase=this.flowTime;this.flowSpeed=clamp(value,.25,2);this.options.flowSpeed=this.flowSpeed;
+  this.flowOffset=phase-this.time*this.flowSpeed;this.render();return this.flowSpeed;
+ }
+ setFormationDuration(seconds){
+  const value=Number(seconds);if(!Number.isFinite(value))return this.formationDuration;
+  const progress=this.formationProgress,active=Math.max(0,this.time-this.options.revealDelay-this.options.wanderSeconds);
+  this.formationDuration=clamp(value,45,180);this.options.revealSeconds=this.formationDuration;
+  this.formationOffset=progress-active/this.formationDuration;this.render();return this.formationDuration;
+ }
  replay(){
   if(this.reduced)return;
   // Retain the current frame, then dissolve into the new reveal without a cut.
   const snapshot=document.createElement('canvas');snapshot.width=this.canvas.width;snapshot.height=this.canvas.height;
   const context=snapshot.getContext('2d');if(context){context.drawImage(this.canvas,0,0);this.replaySnapshot=snapshot;this.replayElapsed=0}
-  this.time=0;this.paused=false;this.previous=0;this.render();this.schedule()
+  this.time=0;this.flowOffset=0;this.formationOffset=0;this.paused=false;this.previous=0;this.render();this.schedule()
  }
  render(){
   const c=this.context,w=this.width,h=this.height;if(!w||!h)return;this.frameCount++;
-  const t=this.reduced?this.options.revealDelay+this.options.wanderSeconds+this.options.revealSeconds+8:this.time;
-  const timing=timingAt(t,this.options),{reveal}=timing;
+  const frame=this.getFrameState(),t=this.reduced?DEFAULTS.revealDelay+DEFAULTS.wanderSeconds+DEFAULTS.revealSeconds+8:frame.wallSeconds;
+  const progress=this.reduced?1:frame.formationProgress,timing={...timingAt(t,this.options),progress,reveal:smooth(progress)},{reveal}=timing;
   const cx=this.cx+(this.reduced?0:this.pointer.x),cy=this.cy+(this.reduced?0:this.pointer.y),size=Math.min(w,h);
   c.globalAlpha=1;c.fillStyle=this.options.background;c.fillRect(0,0,w,h);
   c.fillStyle='#11ff00';c.font=`600 ${this.row*.88}px "SFMono-Regular",Consolas,"Liberation Mono",monospace`;c.textAlign='center';c.textBaseline='middle';
-  const cols=Math.ceil(w/this.cell),rows=Math.ceil(h/this.row),intro=1-reveal,fieldViewport={width:w,height:h,cell:this.cell,row:this.row};
+  const cols=Math.ceil(w/this.cell),rows=Math.ceil(h/this.row),intro=1-reveal,fieldViewport={width:w,height:h,cell:this.cell,row:this.row,flowSeconds:frame.flowSeconds,formationProgress:progress};
   for(let j=0;j<rows;j++)for(let i=0;i<cols;i++){
    const x=(i+.5)*this.cell,y=(j+.5)*this.row,dx=(x-cx)/size,dy=(y-cy)/size,r=Math.hypot(dx,dy),a=Math.atan2(dy,dx);
    // Sample a fixed source-space pattern; the shared field advects its ink.
@@ -117,15 +161,16 @@ export class AsciiField {
    const core=1-Math.exp(-r*r*24),edge=clamp(1.18-r*.87);
    const centerClear=1-.85*reveal*Math.exp(-Math.pow((x-this.cx)/(this.wordmarkBounds.width*.63),6)-Math.pow((y-this.cy)/(this.wordmarkBounds.height*.74),4));
    let intensity=(.085+ribbon*.52+arc*.16)*core*edge*centerClear+intro*.15*Math.exp(-r*4);
-   // Brightness texture stays anchored while each glyph physically drifts.
    intensity*=.58+.42*hash(i+71,j-18);
+   // Initial ink is diffuse and seeded; the ordered ribbons emerge gradually.
+   const diffuse=.14+.06*hash(i+219,j-91);intensity=diffuse+(intensity-diffuse)*reveal;
    // Lift dim phosphor strokes without changing the field's slow motion clock.
    const alpha=Math.pow(clamp(intensity*.64),.76),glyph=glyphStateAt(i,j,t,this.options),pose=this.reduced?{x,y}:fieldPoseAt(i,j,fieldViewport,t,this.options);
    c.globalAlpha=alpha*(1-glyph.blend);c.fillText(glyph.from,pose.x,pose.y);
    if(glyph.blend>0){c.globalAlpha=alpha*glyph.blend;c.fillText(glyph.to,pose.x,pose.y)}
   }
   c.font=`${this.titleFont}px "SFMono-Regular",Consolas,"Liberation Mono",monospace`;c.textAlign='left';c.textBaseline='top';
-  const titleViewport={width:w,height:h,fontSize:this.titleFont};
+  const titleViewport={width:w,height:h,fontSize:this.titleFont,flowSeconds:frame.flowSeconds,formationProgress:progress};
   for(let id=0;id<this.title.length;id++){
    const p=this.title[id],pose=this.reduced?{x:p.x,y:p.y,settle:1}:particlePoseAt(id,p,titleViewport,t,this.options),local=pose.settle;
    // The stream keeps turning clockwise while the exact mark emerges in place.

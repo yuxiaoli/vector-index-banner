@@ -29,9 +29,16 @@
       <div class="motion-panel">
       <p class="motion-status" id="status" role="status" aria-live="polite">Loading animation.</p>
       <div class="controls" role="group" aria-label="Animation controls" aria-describedby="status">
+        <div class="timing-controls">
+          <div class="timing-control"><label for="flow-speed">Flow speed <output id="flow-value" for="flow-speed">1.00×</output></label><input id="flow-speed" type="range" min="0.25" max="2" step="0.05" value="1" aria-describedby="timing-help"></div>
+          <div class="timing-control"><label for="formation-duration">Formation duration <output id="duration-value" for="formation-duration">96s</output></label><input id="formation-duration" type="range" min="45" max="180" step="1" value="96" aria-describedby="timing-help"></div>
+        </div>
+        <div class="control-buttons">
         <button id="motion" type="button" aria-pressed="true" aria-label="Turn animation motion off" title="Show a still composition"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 10V6m4 7V3m4 11V2m4 9V5"/></svg><span class="motion-label">Motion</span><span class="motion-state">on</span></button>
         <button id="pause" type="button" aria-label="Pause animation"><svg viewBox="0 0 16 16" aria-hidden="true"><path class="pause-shape" d="M5 3v10M11 3v10"/><path class="play-shape" d="m5 3 7 5-7 5Z"/></svg><span>Pause</span></button>
         <button id="replay" type="button" aria-label="Replay reveal"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6a5 5 0 1 1 .5 5M3 2v4h4"/></svg><span>Replay</span></button>
+        </div>
+        <p class="timing-help" id="timing-help">Duration changes remaining pace. Replay starts a full cycle.</p>
       </div>
       </div>
     </footer>

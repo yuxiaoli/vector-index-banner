@@ -136,7 +136,7 @@ test('background glyph anchors follow continuous curved local paths before and a
   console.log('Physical background wandering: ' + JSON.stringify(observations));
 });
 
-test('both layers use the same structured flow without per-identity random trajectories', () => {
+test('dispersed identities share one flow clock independently of their later targets and assembly duration', () => {
   assert.equal(typeof renderer.particlePoseAt, 'function', 'a deterministic physical title pose is available');
   assert.equal(typeof renderer.fieldPoseAt, 'function');
   const longer = { ...DEFAULTS, revealSeconds: DEFAULTS.revealSeconds * 2 };
@@ -148,11 +148,12 @@ test('both layers use the same structured flow without per-identity random traje
     for (let id = 0; id < 64; id++) {
       for (const time of [4, 10, 18]) {
         const normal = renderer.particlePoseAt(id, a, viewport, time);
-        assert.deepEqual(renderer.particlePoseAt(id + 1000, a, viewport, time), normal, 'identity does not introduce an independent random path');
-        const shared = renderer.flowPoseAt(a, viewport, time);
+        const origin = renderer.seedOriginAt(id, viewport);
+        const shared = renderer.flowPoseAt(origin, viewport, time);
         assert.equal(normal.x, shared.x); assert.equal(normal.y, shared.y);
         assert.deepEqual(renderer.particlePoseAt(id, a, viewport, time, longer), normal, 'longer assembly preserves the initial coherent clock');
-        assert.notDeepEqual(renderer.particlePoseAt(id, b, viewport, time), normal, 'different spatial points remain separate streamlines');
+        assert.deepEqual(renderer.particlePoseAt(id, b, viewport, time), normal, 'the same initial identity is independent of its future letter target');
+        assert.notDeepEqual(renderer.seedOriginAt(id + 1000, viewport), origin, 'different identities start dispersed instead of sharing a target silhouette');
         assert.equal(normal.settle, 0);
       }
       const start = renderer.particlePoseAt(id, a, viewport, 4), later = renderer.particlePoseAt(id, a, viewport, 6);

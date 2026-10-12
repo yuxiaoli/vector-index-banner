@@ -2,7 +2,7 @@
 
 Original, dependency-free Canvas 2D banner study. No external fonts, trackers, WebGL, or backend.
 
-A shared clockwise fluid field carries the background characters and forming wordmark. Gentle, spatially coherent turbulence gives the flow variation. The pattern becomes clearer over time and blends smoothly into a stable custom bitmap wordmark while the surrounding field continues circulating.
+A shared clockwise fluid field starts with seeded, dispersed characters whose positions do not depend on the final text. Gentle radial turbulence gives the flow variation. Polar attraction gradually organizes the cloud into the wordmark before it resolves into precise, stable letters. The surrounding field continues circulating.
 
 ## Run
 
@@ -10,7 +10,7 @@ Serve this directory with any static HTTP server. Run `npm run check` for syntax
 
 ## Reuse
 
-Import `AsciiField` from `renderer.js`, instantiate it with a canvas, and call `destroy()` on unmount. Methods: `setPaused(boolean)`, `setReduced(boolean)`, and `replay()`. Options are exported as `DEFAULTS`; all timing uses elapsed seconds, independently of frame rate. CSS and the semantic HTML overlay are separate from the renderer.
+Import `AsciiField` from `renderer.js`, instantiate it with a canvas, and call `destroy()` on unmount. Methods: `setPaused(boolean)`, `setReduced(boolean)`, `setFlowSpeed(multiplier)`, `setFormationDuration(seconds)`, and `replay()`. Options are exported as `DEFAULTS`; all timing uses elapsed seconds, independently of frame rate. CSS and the semantic HTML overlay are separate from the renderer.
 
 ## Accessibility and performance
 
@@ -22,14 +22,23 @@ Requested palette: exact `#11FF00` on pure `#000000`.
 
 ## Flow and formation
 
-- A 1.8-second lead-in and 18-second initial flow precede 96 seconds of formation. The complete sequence lasts 115.8 seconds.
-- Background and forming characters use the same continuous clockwise field. Local turbulence remains subordinate to the common direction; motion is deterministic and has no frame-to-frame random jitter.
+- The default 1.8-second lead-in and 18-second initial flow precede 96 seconds of formation. The default complete sequence lasts 115.8 seconds.
+- Background and forming characters start dispersed and use the same continuous clockwise field. Local turbulence remains subordinate to the common direction; motion is deterministic and has no frame-to-frame random jitter.
 - The common flow advances at 0.10 radians per second, roughly one turn every 63 seconds. Its bounded paths keep characters inside the viewport.
-- Fluid motion and text formation use separate clocks. Deformation reduces gradually, and complementary flowing and stationary text layers blend into the clear final wordmark. The angular flow never unwinds as the text resolves.
+- Organization changes particle geometry: radii approach the target structure and angular attraction proceeds clockwise. A complementary stationary layer resolves the exact final letters after substantial organization. The angular flow never unwinds as the text resolves.
+- Background ink begins diffuse and gradually develops organized ribbons, so the opening does not carry a fixed text silhouette or ribbon pattern.
 - The background continues circulating once the wordmark is readable. Brightness and glyph crossfades remain continuous.
 - Background glyphs use a staggered 56-second cycle with 12-second crossfades.
 - Pointer motion is subtle and eases over 2.4 seconds. Replay dissolves over 5.5 seconds and restarts the same sequence.
 - System reduced-motion starts with a clearly identified still composition and complete wordmark. Enabling motion starts the flow for this page; pause and replay remain separate controls.
+
+## Independent controls
+
+Flow speed ranges from 0.25× to 2×. Changing it preserves the current flow phase, particle positions, and formation progress, then changes future movement speed.
+
+Formation duration ranges from 45 to 180 seconds and defaults to 96 seconds. It describes the formation phase; the initial 19.8 seconds are separate. Changing duration preserves current progress and changes the remaining pace. It does not restart the animation. Replay begins a full cycle with the selected speed and duration.
+
+Both settings remain adjustable while paused or in reduced motion, without starting movement. Native labelled range inputs support keyboard and touch interaction, with visible values and explanatory help.
 
 ## Brightness
 
